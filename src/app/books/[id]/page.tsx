@@ -1,9 +1,10 @@
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { getBookById, getUnitsByBook } from "../../actions";
+import { getBookById, getUnitsByBook, getBookProgress, getUnitProgress } from "../../actions";
 import Link from "next/link";
 import { ArrowLeft, BookOpen } from "lucide-react";
+import { ProgressBar, ProgressBadge } from "@/components/ProgressIndicator";
 
 export default async function BookDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const session = await auth.api.getSession({
@@ -21,14 +22,23 @@ export default async function BookDetailPage({ params }: { params: Promise<{ id:
         notFound();
     }
 
-    const [book, units] = await Promise.all([
+    const [book, units, bookProgress] = await Promise.all([
         getBookById(bookId),
         getUnitsByBook(bookId),
+        getBookProgress(bookId),
     ]);
 
     if (!book) {
         notFound();
     }
+
+    // Get progress for each unit
+    const unitsWithProgress = await Promise.all(
+        units.map(async (unit) => ({
+            ...unit,
+            progress: await getUnitProgress(unit.id),
+        }))
+    );
 
     return (
         <main className="py-12 px-4 sm:px-6 lg:px-8 font-sans bg-white min-h-screen">
@@ -43,11 +53,21 @@ export default async function BookDetailPage({ params }: { params: Promise<{ id:
                     </Link>
                 </div>
                 <header className="mb-10">
-                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl mb-2">
-                        {book.title}
-                    </h1>
+                    <div className="flex items-center justify-between mb-4">
+                        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl">
+                            {book.title}
+                        </h1>
+                        {bookProgress.totalWords > 0 && (
+                            <ProgressBadge progress={bookProgress} />
+                        )}
+                    </div>
                     {book.description && (
-                        <p className="text-slate-500">{book.description}</p>
+                        <p className="text-slate-500 mb-4">{book.description}</p>
+                    )}
+                    {bookProgress.totalWords > 0 && (
+                        <div className="mt-4">
+                            <ProgressBar progress={bookProgress} />
+                        </div>
                     )}
                 </header>
 
@@ -58,7 +78,7 @@ export default async function BookDetailPage({ params }: { params: Promise<{ id:
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {units.map((unit) => (
+                        {unitsWithProgress.map((unit) => (
                             <Link
                                 key={unit.id}
                                 href={`/units/${unit.id}`}
@@ -68,11 +88,23 @@ export default async function BookDetailPage({ params }: { params: Promise<{ id:
                                     <div className="p-4 bg-emerald-100 rounded-xl group-hover:bg-emerald-200 transition-colors">
                                         <BookOpen className="w-8 h-8 text-emerald-600" />
                                     </div>
-                                    <div>
-                                        <h2 className="text-xl font-bold text-slate-900">{unit.title}</h2>
-                                        <p className="text-sm text-slate-500">Unit {unit.order + 1}</p>
+                                    <div className="flex-1">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h2 className="text-xl font-bold text-slate-900">{unit.title}</h2>
+                                                <p className="text-sm text-slate-500">Unit {unit.order + 1}</p>
+                                            </div>
+                                            {unit.progress.totalWords > 0 && (
+                                                <ProgressBadge progress={unit.progress} />
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
+                                {unit.progress.totalWords > 0 && (
+                                    <div className="mt-4">
+                                        <ProgressBar progress={unit.progress} size="sm" />
+                                    </div>
+                                )}
                             </Link>
                         ))}
                     </div>

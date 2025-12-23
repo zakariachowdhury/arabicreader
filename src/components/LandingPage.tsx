@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Zap, Shield, ArrowRight, Sparkles, Bot, MessageSquare, Wand2, FolderKanban, Users, Settings, Lock, Mail, Palette, Star, Trash2, Edit2, Plus, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { CheckCircle2, Zap, Shield, ArrowRight, Sparkles, Bot, MessageSquare, Wand2, FolderKanban, Users, Settings, Lock, Mail, Palette, Star, Trash2, Edit2, Plus, Eye, EyeOff, RefreshCw, BookOpen, GraduationCap, Languages, BarChart3, Target } from "lucide-react";
 
 export function LandingPage() {
     return (
@@ -11,10 +11,10 @@ export function LandingPage() {
                     <span>Now with AI Assistant</span>
                 </div>
                 <h1 className="text-5xl sm:text-7xl font-extrabold text-slate-900 tracking-tight mb-8 max-w-4xl leading-[1.1]">
-                    Manage tasks with <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">AI-powered</span> simplicity.
+                    Master Arabic with <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">AI-powered</span> reading.
                 </h1>
                 <p className="text-xl text-slate-500 max-w-2xl mb-10 leading-relaxed font-light">
-                    {process.env.NEXT_PUBLIC_APP_NAME || "TaskFlow"} combines beautiful design with intelligent AI assistance. Just tell the AI what you need, and watch your tasks get organized automatically.
+                    {process.env.NEXT_PUBLIC_APP_NAME || "Arabic Reader"} combines beautiful design with intelligent AI assistance. Read Arabic books, learn vocabulary, and track your progress with personalized guidance.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
                     <Link href="/signup" className="px-8 py-4 bg-blue-600 text-white rounded-2xl text-lg font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/25 group">
@@ -22,7 +22,7 @@ export function LandingPage() {
                         <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </Link>
                     <Link href="/login" className="px-8 py-4 bg-white text-slate-900 rounded-2xl text-lg font-bold hover:bg-slate-50 transition-all border border-slate-200 flex items-center justify-center shadow-lg shadow-slate-200/20">
-                        View Demo
+                        Start Reading
                     </Link>
                 </div>
             </header>
@@ -33,13 +33,13 @@ export function LandingPage() {
                     <div className="text-center mb-16">
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full text-sm font-bold mb-6">
                             <Sparkles size={18} />
-                            <span>AI-Powered Task Management</span>
+                            <span>AI-Powered Learning Assistant</span>
                         </div>
                         <h2 className="text-4xl sm:text-5xl font-bold text-slate-900 mb-6 tracking-tight">
-                            Your AI Assistant is Always Ready
+                            Your AI Learning Companion is Always Ready
                         </h2>
                         <p className="text-slate-600 max-w-2xl mx-auto text-lg font-light leading-relaxed">
-                            Simply describe what you want to do in natural language. The AI understands context, manages multiple tasks at once, and learns from your conversation history.
+                            Get instant help with Arabic vocabulary, grammar, and reading comprehension. The AI understands context, explains difficult words, and helps you progress through your books.
                         </p>
                     </div>
                     
@@ -50,19 +50,19 @@ export function LandingPage() {
                                     <MessageSquare className="w-7 h-7 text-white" />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-bold text-slate-900 mb-2">Natural Language Commands</h3>
+                                    <h3 className="text-xl font-bold text-slate-900 mb-2">Vocabulary Help</h3>
                                     <p className="text-slate-600 font-light leading-relaxed mb-4">
-                                        Talk to your AI assistant like you would to a colleague. No need to learn complex commands or interfaces.
+                                        Ask questions about Arabic words, phrases, or grammar. Get instant explanations and context to deepen your understanding.
                                     </p>
                                     <div className="space-y-2 text-sm text-slate-500">
                                         <p className="flex items-center gap-2">
-                                            <span className="text-blue-600">•</span> "Add tasks: Buy groceries, Call mom, Finish report"
+                                            <span className="text-blue-600">•</span> "What does this word mean?"
                                         </p>
                                         <p className="flex items-center gap-2">
-                                            <span className="text-blue-600">•</span> "Complete the first two tasks"
+                                            <span className="text-blue-600">•</span> "Explain this sentence"
                                         </p>
                                         <p className="flex items-center gap-2">
-                                            <span className="text-blue-600">•</span> "Mark task 5 as done and delete all completed tasks"
+                                            <span className="text-blue-600">•</span> "Help me understand this grammar rule"
                                         </p>
                                     </div>
                                 </div>
@@ -75,19 +75,19 @@ export function LandingPage() {
                                     <Wand2 className="w-7 h-7 text-white" />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-bold text-slate-900 mb-2">Smart Context Understanding</h3>
+                                    <h3 className="text-xl font-bold text-slate-900 mb-2">Personalized Learning</h3>
                                     <p className="text-slate-600 font-light leading-relaxed mb-4">
-                                        The AI remembers your conversation and understands references. Say "complete that task" and it knows exactly what you mean.
+                                        The AI tracks your progress and adapts to your learning level. Get explanations tailored to your current book and vocabulary knowledge.
                                     </p>
                                     <div className="space-y-2 text-sm text-slate-500">
                                         <p className="flex items-center gap-2">
-                                            <span className="text-purple-600">•</span> Remembers previous messages
+                                            <span className="text-purple-600">•</span> Tracks your reading progress
                                         </p>
                                         <p className="flex items-center gap-2">
-                                            <span className="text-purple-600">•</span> Understands "first", "second", "last" references
+                                            <span className="text-purple-600">•</span> Knows which words you've learned
                                         </p>
                                         <p className="flex items-center gap-2">
-                                            <span className="text-purple-600">•</span> Handles multiple actions in one request
+                                            <span className="text-purple-600">•</span> Provides context-aware explanations
                                         </p>
                                     </div>
                                 </div>
@@ -104,31 +104,31 @@ export function LandingPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                                 <div className="flex items-center gap-3">
                                     <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                                    <span className="text-blue-50">Add multiple tasks at once</span>
+                                    <span className="text-blue-50">Explain Arabic vocabulary and grammar</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                                    <span className="text-blue-50">Edit task descriptions</span>
+                                    <span className="text-blue-50">Help with reading comprehension</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                                    <span className="text-blue-50">Mark tasks as complete</span>
+                                    <span className="text-blue-50">Track your learning progress</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                                    <span className="text-blue-50">Reactivate completed tasks</span>
+                                    <span className="text-blue-50">Provide context for difficult passages</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                                    <span className="text-blue-50">Delete tasks selectively</span>
+                                    <span className="text-blue-50">Answer questions about your books</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                                    <span className="text-blue-50">Answer questions about your tasks</span>
+                                    <span className="text-blue-50">Suggest learning strategies</span>
                                 </div>
                             </div>
                             <p className="text-blue-100 text-sm font-light">
-                                All accessible through a floating chat button that follows you throughout the app. Choose from multiple AI models to find the one that works best for you.
+                                All accessible through a floating chat button that follows you throughout the app. Choose from multiple AI models to find the one that works best for your learning style.
                             </p>
                         </div>
                         <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-64 h-64 bg-white/10 rounded-full blur-[80px]"></div>
@@ -141,128 +141,121 @@ export function LandingPage() {
             <section className="bg-white py-24 border-t border-slate-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-16">
-                        <h2 className="text-4xl sm:text-5xl font-bold text-slate-900 mb-6 tracking-tight">Everything you need to stay organized</h2>
+                        <h2 className="text-4xl sm:text-5xl font-bold text-slate-900 mb-6 tracking-tight">Everything you need to master Arabic</h2>
                         <p className="text-slate-500 max-w-2xl mx-auto text-lg font-light leading-relaxed">
-                            Powerful features designed to help you manage your tasks efficiently and stay productive without the clutter.
+                            Powerful features designed to help you learn Arabic efficiently through structured reading and vocabulary practice.
                         </p>
                     </div>
 
-                    {/* Task Management Features */}
+                    {/* Book & Learning Features */}
                     <div className="mb-20">
                         <div className="flex items-center gap-3 mb-8">
                             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                                <CheckCircle2 className="w-6 h-6 text-blue-600" />
+                                <BookOpen className="w-6 h-6 text-blue-600" />
                             </div>
-                            <h3 className="text-2xl font-bold text-slate-900">Task Management</h3>
+                            <h3 className="text-2xl font-bold text-slate-900">Book Reading & Learning</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 p-6 rounded-2xl border border-blue-200/50 hover:shadow-lg transition-all">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <Plus className="w-5 h-5 text-blue-600" />
-                                    <h4 className="font-bold text-slate-900">Quick Add</h4>
+                                    <BookOpen className="w-5 h-5 text-blue-600" />
+                                    <h4 className="font-bold text-slate-900">Structured Books</h4>
                                 </div>
                                 <p className="text-sm text-slate-600 font-light">
-                                    Instantly add new tasks with a simple form. Assign them to groups or keep them uncategorized.
+                                    Read Arabic books organized into units and lessons. Progress through structured content designed for learning.
                                 </p>
                             </div>
                             <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-6 rounded-2xl border border-emerald-200/50 hover:shadow-lg transition-all">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <Edit2 className="w-5 h-5 text-emerald-600" />
-                                    <h4 className="font-bold text-slate-900">Edit & Update</h4>
+                                    <GraduationCap className="w-5 h-5 text-emerald-600" />
+                                    <h4 className="font-bold text-slate-900">Vocabulary Flashcards</h4>
                                 </div>
                                 <p className="text-sm text-slate-600 font-light">
-                                    Modify task descriptions anytime. Keep your tasks up-to-date as priorities change.
+                                    Practice vocabulary with interactive flashcards. Master words through spaced repetition and testing.
                                 </p>
                             </div>
                             <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 p-6 rounded-2xl border border-purple-200/50 hover:shadow-lg transition-all">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <CheckCircle2 className="w-5 h-5 text-purple-600" />
-                                    <h4 className="font-bold text-slate-900">Complete & Reactivate</h4>
+                                    <BarChart3 className="w-5 h-5 text-purple-600" />
+                                    <h4 className="font-bold text-slate-900">Progress Tracking</h4>
                                 </div>
                                 <p className="text-sm text-slate-600 font-light">
-                                    Mark tasks as done with one click. Reactivate completed tasks if needed.
+                                    Track your reading progress and vocabulary mastery. See how many words you've learned and reviewed.
                                 </p>
                             </div>
                             <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 p-6 rounded-2xl border border-amber-200/50 hover:shadow-lg transition-all">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <Eye className="w-5 h-5 text-amber-600" />
-                                    <h4 className="font-bold text-slate-900">Organized Views</h4>
+                                    <Target className="w-5 h-5 text-amber-600" />
+                                    <h4 className="font-bold text-slate-900">Activity Metrics</h4>
                                 </div>
                                 <p className="text-sm text-slate-600 font-light">
-                                    Separate views for active and completed tasks. See what needs attention at a glance.
-                                </p>
-                            </div>
-                            <div className="bg-gradient-to-br from-red-50 to-red-100/50 p-6 rounded-2xl border border-red-200/50 hover:shadow-lg transition-all">
-                                <div className="flex items-center gap-3 mb-3">
-                                    <Trash2 className="w-5 h-5 text-red-600" />
-                                    <h4 className="font-bold text-slate-900">Smart Deletion</h4>
-                                </div>
-                                <p className="text-sm text-slate-600 font-light">
-                                    Remove tasks you no longer need. Clean up your list and stay focused.
+                                    Monitor your daily activity, practice sessions, and test results. Stay motivated with detailed analytics.
                                 </p>
                             </div>
                             <div className="bg-gradient-to-br from-cyan-50 to-cyan-100/50 p-6 rounded-2xl border border-cyan-200/50 hover:shadow-lg transition-all">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <RefreshCw className="w-5 h-5 text-cyan-600" />
+                                    <Languages className="w-5 h-5 text-cyan-600" />
+                                    <h4 className="font-bold text-slate-900">AI Translation Help</h4>
+                                </div>
+                                <p className="text-sm text-slate-600 font-light">
+                                    Get instant help understanding difficult words and phrases. AI-powered explanations tailored to your level.
+                                </p>
+                            </div>
+                            <div className="bg-gradient-to-br from-red-50 to-red-100/50 p-6 rounded-2xl border border-red-200/50 hover:shadow-lg transition-all">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <RefreshCw className="w-5 h-5 text-red-600" />
                                     <h4 className="font-bold text-slate-900">Real-time Sync</h4>
                                 </div>
                                 <p className="text-sm text-slate-600 font-light">
-                                    All changes sync instantly. Your tasks are always up-to-date across all devices.
+                                    All progress syncs instantly. Your learning data is always up-to-date across all devices.
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Group Organization Features */}
+                    {/* Structured Learning Features */}
                     <div className="mb-20">
                         <div className="flex items-center gap-3 mb-8">
                             <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
                                 <FolderKanban className="w-6 h-6 text-purple-600" />
                             </div>
-                            <h3 className="text-2xl font-bold text-slate-900">Group Organization</h3>
+                            <h3 className="text-2xl font-bold text-slate-900">Structured Learning Path</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg hover:shadow-xl transition-all">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <Palette className="w-5 h-5 text-purple-600" />
-                                    <h4 className="font-bold text-slate-900">Color-Coded Groups</h4>
+                                    <BookOpen className="w-5 h-5 text-purple-600" />
+                                    <h4 className="font-bold text-slate-900">Books & Units</h4>
                                 </div>
                                 <p className="text-sm text-slate-600 font-light mb-3">
-                                    Create custom groups with your favorite colors. Visual organization makes it easy to find what you need.
+                                    Books are organized into units and lessons. Follow a clear learning path from beginner to advanced.
                                 </p>
-                                <div className="flex gap-2">
-                                    <div className="w-4 h-4 rounded-full bg-blue-500"></div>
-                                    <div className="w-4 h-4 rounded-full bg-green-500"></div>
-                                    <div className="w-4 h-4 rounded-full bg-amber-500"></div>
-                                    <div className="w-4 h-4 rounded-full bg-red-500"></div>
-                                    <div className="w-4 h-4 rounded-full bg-purple-500"></div>
-                                </div>
                             </div>
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg hover:shadow-xl transition-all">
                                 <div className="flex items-center gap-3 mb-3">
                                     <Star className="w-5 h-5 text-amber-600" />
-                                    <h4 className="font-bold text-slate-900">Default Groups</h4>
+                                    <h4 className="font-bold text-slate-900">Vocabulary Lists</h4>
                                 </div>
                                 <p className="text-sm text-slate-600 font-light">
-                                    Set a default group for quick task creation. New tasks automatically join your preferred group.
+                                    Each lesson includes vocabulary words. Practice and master them before moving to the next lesson.
                                 </p>
                             </div>
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg hover:shadow-xl transition-all">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <Edit2 className="w-5 h-5 text-blue-600" />
-                                    <h4 className="font-bold text-slate-900">Custom Descriptions</h4>
+                                    <Target className="w-5 h-5 text-blue-600" />
+                                    <h4 className="font-bold text-slate-900">Progress Indicators</h4>
                                 </div>
                                 <p className="text-sm text-slate-600 font-light">
-                                    Add descriptions to your groups. Keep context and purpose clear for each category.
+                                    Visual progress bars show your completion status. Track words seen, mastered, and overall progress.
                                 </p>
                             </div>
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg hover:shadow-xl transition-all">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <Eye className="w-5 h-5 text-emerald-600" />
-                                    <h4 className="font-bold text-slate-900">Task Counts</h4>
+                                    <BarChart3 className="w-5 h-5 text-emerald-600" />
+                                    <h4 className="font-bold text-slate-900">Activity Tracking</h4>
                                 </div>
                                 <p className="text-sm text-slate-600 font-light">
-                                    See how many tasks are in each group at a glance. Track your progress visually.
+                                    See your daily activity, practice sessions, and test results. Monitor your learning habits.
                                 </p>
                             </div>
                         </div>
@@ -322,7 +315,7 @@ export function LandingPage() {
                                 </div>
                                 <h4 className="font-bold text-slate-900 mb-2">Lightning Fast</h4>
                                 <p className="text-sm text-slate-600 font-light">
-                                    Zero latency. Instant task updates. Built with Next.js for optimal performance.
+                                    Zero latency. Instant vocabulary lookups. Built with Next.js for optimal performance.
                                 </p>
                             </div>
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg hover:shadow-xl transition-all">
@@ -340,7 +333,7 @@ export function LandingPage() {
                                 </div>
                                 <h4 className="font-bold text-slate-900 mb-2">Clean Interface</h4>
                                 <p className="text-sm text-slate-600 font-light">
-                                    Minimalist design that focuses on your tasks. No distractions, just productivity.
+                                    Minimalist design that focuses on your reading. No distractions, just learning.
                                 </p>
                             </div>
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg hover:shadow-xl transition-all">
@@ -349,7 +342,7 @@ export function LandingPage() {
                                 </div>
                                 <h4 className="font-bold text-slate-900 mb-2">Responsive Design</h4>
                                 <p className="text-sm text-slate-600 font-light">
-                                    Works beautifully on desktop, tablet, and mobile. Access your tasks anywhere.
+                                    Works beautifully on desktop, tablet, and mobile. Read and learn Arabic anywhere.
                                 </p>
                             </div>
                         </div>
@@ -358,9 +351,9 @@ export function LandingPage() {
                     {/* Platform Features */}
                     <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-3xl p-8 sm:p-12 border border-slate-200">
                         <div className="text-center mb-8">
-                            <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">Built for Modern Workflows</h3>
+                            <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">Built for Modern Learning</h3>
                             <p className="text-slate-600 max-w-2xl mx-auto font-light">
-                                Powered by cutting-edge technology to deliver the best experience possible.
+                                Powered by cutting-edge technology to deliver the best Arabic learning experience possible.
                             </p>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -401,9 +394,9 @@ export function LandingPage() {
             <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
                 <div className="bg-blue-600 rounded-[3rem] p-8 sm:p-20 text-center relative overflow-hidden shadow-2xl shadow-blue-500/30">
                     <div className="relative z-10">
-                        <h2 className="text-3xl sm:text-5xl font-bold text-white mb-6 tracking-tight">Ready to clear your backlog?</h2>
+                        <h2 className="text-3xl sm:text-5xl font-bold text-white mb-6 tracking-tight">Ready to master Arabic?</h2>
                         <p className="text-blue-100 text-lg mb-10 max-w-xl mx-auto font-light leading-relaxed">
-                            Join thousands of users who have transformed their productivity with {process.env.NEXT_PUBLIC_APP_NAME || "TaskFlow"}.
+                            Join learners who are improving their Arabic reading skills with {process.env.NEXT_PUBLIC_APP_NAME || "Arabic Reader"}.
                         </p>
                         <Link href="/signup" className="inline-flex px-10 py-4 bg-white text-blue-600 rounded-2xl text-lg font-bold hover:bg-slate-50 transition-all shadow-xl">
                             Get Started for Free

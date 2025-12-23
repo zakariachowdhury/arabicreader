@@ -1,2 +1,2 @@
-export { getLessonsByUnit, getLessonById, createLesson, updateLesson, deleteLesson, getUnitById } from "../../actions";
+export { getLessonsByUnit, getLessonById, createLesson, updateLesson, deleteLesson, getUnitById } from "../../../actions";
 

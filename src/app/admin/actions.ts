@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { user, todos, groups, settings, books, units, lessons, vocabularyWords } from "@/db/schema";
-import { eq, desc, asc, and } from "drizzle-orm";
+import { user, todos, groups, settings, books, units, lessons, vocabularyWords, userProgress } from "@/db/schema";
+import { eq, desc, asc, and, sql, gte, lte, count, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin";
 import { auth } from "@/lib/auth";
@@ -137,6 +137,10 @@ export async function getAdminStats() {
         const allUsers = await db.select().from(user);
         const allTodos = await db.select().from(todos);
         const allGroups = await db.select().from(groups);
+        const allBooks = await db.select().from(books);
+        const allUnits = await db.select().from(units);
+        const allLessons = await db.select().from(lessons);
+        const allVocabulary = await db.select().from(vocabularyWords);
         const completedTodos = allTodos.filter(t => t.completed);
         const adminUsers = allUsers.filter(u => u.isAdmin);
 
@@ -146,6 +150,10 @@ export async function getAdminStats() {
             completedTodos: completedTodos.length,
             totalAdmins: adminUsers.length,
             totalGroups: allGroups.length,
+            totalBooks: allBooks.length,
+            totalUnits: allUnits.length,
+            totalLessons: allLessons.length,
+            totalVocabulary: allVocabulary.length,
         };
     } catch (error) {
         console.error("Failed to fetch admin stats:", error);
@@ -155,6 +163,10 @@ export async function getAdminStats() {
             completedTodos: 0,
             totalAdmins: 0,
             totalGroups: 0,
+            totalBooks: 0,
+            totalUnits: 0,
+            totalLessons: 0,
+            totalVocabulary: 0,
         };
     }
 }
@@ -758,6 +770,520 @@ export async function bulkAddVocabularyWords(
     } catch (error) {
         console.error("Failed to bulk add vocabulary words:", error);
         throw new Error("Failed to bulk add vocabulary words");
+    }
+}
+
+// Analytics Functions
+export type DailyActivityData = {
+    date: string;
+    wordsReviewed: number;
+    practiceSessions: number;
+    testSessions: number;
+    activeUsers: number;
+};
+
+export type PracticeMetrics = {
+    totalWordsPracticed: number;
+    accuracyRate: number;
+    wordsSeen: number;
+    wordsNotSeen: number;
+    totalCorrect: number;
+    totalIncorrect: number;
+    practiceActivityByLesson: Array<{
+        lessonId: number;
+        lessonTitle: string;
+        wordsPracticed: number;
+        accuracy: number;
+    }>;
+};
+
+export type TestResult = {
+    date: string;
+    score: number;
+    totalWords: number;
+    correctWords: number;
+    lessonId: number | null;
+    lessonTitle: string | null;
+};
+
+export type UserActivitySummary = {
+    totalWordsReviewed: number;
+    totalPracticeSessions: number;
+    totalTestSessions: number;
+    averageAccuracy: number;
+    currentStreak: number;
+    longestStreak: number;
+    lastActivityDate: string | null;
+};
+
+export async function getDailyUserActivity(
+    startDate: Date,
+    endDate: Date,
+    userId?: string
+): Promise<DailyActivityData[]> {
+    await requireAdmin();
+
+    try {
+        // Build base query conditions
+        const conditions = [
+            gte(sql`DATE(${userProgress.lastReviewedAt})`, startDate.toISOString().split('T')[0]),
+            lte(sql`DATE(${userProgress.lastReviewedAt})`, endDate.toISOString().split('T')[0]),
+        ];
+
+        if (userId) {
+            conditions.push(eq(userProgress.userId, userId));
+        }
+
+        // Get daily words reviewed
+        const dailyWords = await db
+            .select({
+                date: sql<string>`DATE(${userProgress.lastReviewedAt})`.as('date'),
+                count: sql<number>`COUNT(DISTINCT ${userProgress.wordId})`.as('count'),
+            })
+            .from(userProgress)
+            .where(and(...conditions))
+            .groupBy(sql`DATE(${userProgress.lastReviewedAt})`);
+
+        // Get daily active users (for admin view)
+        const dailyActiveUsers = userId
+            ? []
+            : await db
+                  .select({
+                      date: sql<string>`DATE(${userProgress.lastReviewedAt})`.as('date'),
+                      count: sql<number>`COUNT(DISTINCT ${userProgress.userId})`.as('count'),
+                  })
+                  .from(userProgress)
+                  .where(and(...conditions))
+                  .groupBy(sql`DATE(${userProgress.lastReviewedAt})`);
+
+        // Estimate practice sessions (words reviewed with correct/incorrect in same day)
+        // A practice session is when a user reviews words - we'll count distinct user+date combinations
+        const practiceSessions = await db
+            .select({
+                date: sql<string>`DATE(${userProgress.lastReviewedAt})`.as('date'),
+                count: sql<number>`COUNT(DISTINCT ${userProgress.userId} || '-' || DATE(${userProgress.lastReviewedAt}))`.as('count'),
+            })
+            .from(userProgress)
+            .where(and(...conditions))
+            .groupBy(sql`DATE(${userProgress.lastReviewedAt})`);
+
+        // Estimate test sessions (multiple words reviewed in quick succession)
+        // For now, we'll approximate: if a user reviewed 5+ words on the same day, count as a test
+        const testSessions = await db
+            .select({
+                date: sql<string>`DATE(${userProgress.lastReviewedAt})`.as('date'),
+                userId: userProgress.userId,
+                wordCount: sql<number>`COUNT(DISTINCT ${userProgress.wordId})`.as('word_count'),
+            })
+            .from(userProgress)
+            .where(and(...conditions))
+            .groupBy(sql`DATE(${userProgress.lastReviewedAt})`, userProgress.userId)
+            .having(sql`COUNT(DISTINCT ${userProgress.wordId}) >= 5`);
+
+        // Aggregate test sessions by date
+        const testSessionsByDate = testSessions.reduce((acc, session) => {
+            const date = session.date;
+            acc[date] = (acc[date] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+
+        // Combine all data by date
+        const dateMap = new Map<string, DailyActivityData>();
+        const allDates = new Set<string>();
+
+        dailyWords.forEach(item => allDates.add(item.date));
+        dailyActiveUsers.forEach(item => allDates.add(item.date));
+        practiceSessions.forEach(item => allDates.add(item.date));
+        Object.keys(testSessionsByDate).forEach(date => allDates.add(date));
+
+        allDates.forEach(date => {
+            dateMap.set(date, {
+                date,
+                wordsReviewed: 0,
+                practiceSessions: 0,
+                testSessions: 0,
+                activeUsers: 0,
+            });
+        });
+
+        dailyWords.forEach(item => {
+            const existing = dateMap.get(item.date) || {
+                date: item.date,
+                wordsReviewed: 0,
+                practiceSessions: 0,
+                testSessions: 0,
+                activeUsers: 0,
+            };
+            existing.wordsReviewed = Number(item.count);
+            dateMap.set(item.date, existing);
+        });
+
+        practiceSessions.forEach(item => {
+            const existing = dateMap.get(item.date);
+            if (existing) {
+                existing.practiceSessions = Number(item.count);
+            }
+        });
+
+        dailyActiveUsers.forEach(item => {
+            const existing = dateMap.get(item.date);
+            if (existing) {
+                existing.activeUsers = Number(item.count);
+            }
+        });
+
+        Object.entries(testSessionsByDate).forEach(([date, count]) => {
+            const existing = dateMap.get(date);
+            if (existing) {
+                existing.testSessions = count;
+            }
+        });
+
+        return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+    } catch (error) {
+        console.error("Failed to fetch daily user activity:", error);
+        return [];
+    }
+}
+
+export async function getPracticeMetrics(
+    userId?: string,
+    startDate?: Date,
+    endDate?: Date
+): Promise<PracticeMetrics> {
+    await requireAdmin();
+
+    try {
+        const conditions = [];
+        if (userId) {
+            conditions.push(eq(userProgress.userId, userId));
+        }
+        if (startDate) {
+            conditions.push(gte(sql`DATE(${userProgress.lastReviewedAt})`, startDate.toISOString().split('T')[0]));
+        }
+        if (endDate) {
+            conditions.push(lte(sql`DATE(${userProgress.lastReviewedAt})`, endDate.toISOString().split('T')[0]));
+        }
+
+        const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+        // Get total practice stats
+        const allProgress = await db
+            .select({
+                wordId: userProgress.wordId,
+                correctCount: userProgress.correctCount,
+                incorrectCount: userProgress.incorrectCount,
+                seen: userProgress.seen,
+            })
+            .from(userProgress)
+            .where(whereClause);
+
+        const totalWordsPracticed = new Set(allProgress.map(p => p.wordId)).size;
+        const totalCorrect = allProgress.reduce((sum, p) => sum + p.correctCount, 0);
+        const totalIncorrect = allProgress.reduce((sum, p) => sum + p.incorrectCount, 0);
+        const wordsSeen = allProgress.filter(p => p.seen).length;
+        const wordsNotSeen = allProgress.filter(p => !p.seen).length;
+
+        const accuracyRate =
+            totalCorrect + totalIncorrect > 0
+                ? (totalCorrect / (totalCorrect + totalIncorrect)) * 100
+                : 0;
+
+        // Get practice activity by lesson
+        const progressWithLessons = await db
+            .select({
+                lessonId: vocabularyWords.lessonId,
+                correctCount: userProgress.correctCount,
+                incorrectCount: userProgress.incorrectCount,
+            })
+            .from(userProgress)
+            .innerJoin(vocabularyWords, eq(userProgress.wordId, vocabularyWords.id))
+            .where(whereClause);
+
+        const lessonStats = new Map<number, { correct: number; incorrect: number; wordIds: Set<number> }>();
+
+        progressWithLessons.forEach(item => {
+            if (!lessonStats.has(item.lessonId)) {
+                lessonStats.set(item.lessonId, { correct: 0, incorrect: 0, wordIds: new Set() });
+            }
+            const stats = lessonStats.get(item.lessonId)!;
+            stats.correct += item.correctCount;
+            stats.incorrect += item.incorrectCount;
+        });
+
+        // Get lesson titles
+        const lessonIds = Array.from(lessonStats.keys());
+        const lessonsData = lessonIds.length > 0
+            ? await db
+                  .select({
+                      id: lessons.id,
+                      title: lessons.title,
+                  })
+                  .from(lessons)
+                  .where(inArray(lessons.id, lessonIds))
+            : [];
+
+        const lessonMap = new Map(lessonsData.map(l => [l.id, l.title]));
+
+        const practiceActivityByLesson = Array.from(lessonStats.entries()).map(([lessonId, stats]) => {
+            const total = stats.correct + stats.incorrect;
+            return {
+                lessonId,
+                lessonTitle: lessonMap.get(lessonId) || `Lesson ${lessonId}`,
+                wordsPracticed: stats.wordIds.size,
+                accuracy: total > 0 ? (stats.correct / total) * 100 : 0,
+            };
+        });
+
+        return {
+            totalWordsPracticed,
+            accuracyRate,
+            wordsSeen,
+            wordsNotSeen,
+            totalCorrect,
+            totalIncorrect,
+            practiceActivityByLesson,
+        };
+    } catch (error) {
+        console.error("Failed to fetch practice metrics:", error);
+        return {
+            totalWordsPracticed: 0,
+            accuracyRate: 0,
+            wordsSeen: 0,
+            wordsNotSeen: 0,
+            totalCorrect: 0,
+            totalIncorrect: 0,
+            practiceActivityByLesson: [],
+        };
+    }
+}
+
+export async function getTestResults(
+    userId?: string,
+    startDate?: Date,
+    endDate?: Date
+): Promise<TestResult[]> {
+    await requireAdmin();
+
+    try {
+        // Estimate test sessions: days where user reviewed 5+ words
+        // Group by user, date, and lesson to get test scores
+        const conditions = [];
+        if (userId) {
+            conditions.push(eq(userProgress.userId, userId));
+        }
+        if (startDate) {
+            conditions.push(gte(sql`DATE(${userProgress.lastReviewedAt})`, startDate.toISOString().split('T')[0]));
+        }
+        if (endDate) {
+            conditions.push(lte(sql`DATE(${userProgress.lastReviewedAt})`, endDate.toISOString().split('T')[0]));
+        }
+
+        const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+        // Get daily word reviews with progress data
+        const dailyProgress = await db
+            .select({
+                date: sql<string>`DATE(${userProgress.lastReviewedAt})`.as('date'),
+                userId: userProgress.userId,
+                wordId: userProgress.wordId,
+                lessonId: vocabularyWords.lessonId,
+                correctCount: userProgress.correctCount,
+                incorrectCount: userProgress.incorrectCount,
+            })
+            .from(userProgress)
+            .innerJoin(vocabularyWords, eq(userProgress.wordId, vocabularyWords.id))
+            .where(whereClause);
+
+        // Group by user, date, and lesson
+        const testSessions = new Map<string, {
+            date: string;
+            userId: string;
+            lessonId: number | null;
+            wordIds: Set<number>;
+            correct: number;
+            incorrect: number;
+        }>();
+
+        dailyProgress.forEach(item => {
+            const key = `${item.userId}-${item.date}-${item.lessonId || 'null'}`;
+            if (!testSessions.has(key)) {
+                testSessions.set(key, {
+                    date: item.date,
+                    userId: item.userId,
+                    lessonId: item.lessonId,
+                    wordIds: new Set(),
+                    correct: 0,
+                    incorrect: 0,
+                });
+            }
+            const session = testSessions.get(key)!;
+            session.wordIds.add(item.wordId);
+            session.correct += item.correctCount;
+            session.incorrect += item.incorrectCount;
+        });
+
+        // Filter to sessions with 5+ words (likely tests)
+        const testResults: TestResult[] = [];
+        const lessonIds = new Set<number>();
+
+        testSessions.forEach(session => {
+            if (session.wordIds.size >= 5) {
+                if (session.lessonId) {
+                    lessonIds.add(session.lessonId);
+                }
+                const total = session.correct + session.incorrect;
+                testResults.push({
+                    date: session.date,
+                    score: total > 0 ? (session.correct / total) * 100 : 0,
+                    totalWords: session.wordIds.size,
+                    correctWords: session.correct,
+                    lessonId: session.lessonId,
+                    lessonTitle: null, // Will be filled below
+                });
+            }
+        });
+
+        // Get lesson titles
+        if (lessonIds.size > 0) {
+            const lessonsData = await db
+                .select({
+                    id: lessons.id,
+                    title: lessons.title,
+                })
+                .from(lessons)
+                .where(inArray(lessons.id, Array.from(lessonIds)));
+
+            const lessonMap = new Map(lessonsData.map(l => [l.id, l.title]));
+
+            testResults.forEach(result => {
+                if (result.lessonId) {
+                    result.lessonTitle = lessonMap.get(result.lessonId) || null;
+                }
+            });
+        }
+
+        return testResults.sort((a, b) => a.date.localeCompare(b.date));
+    } catch (error) {
+        console.error("Failed to fetch test results:", error);
+        return [];
+    }
+}
+
+export async function getUserActivitySummary(
+    userId?: string,
+    startDate?: Date,
+    endDate?: Date
+): Promise<UserActivitySummary> {
+    await requireAdmin();
+
+    try {
+        const conditions = [];
+        if (userId) {
+            conditions.push(eq(userProgress.userId, userId));
+        }
+        if (startDate) {
+            conditions.push(gte(sql`DATE(${userProgress.lastReviewedAt})`, startDate.toISOString().split('T')[0]));
+        }
+        if (endDate) {
+            conditions.push(lte(sql`DATE(${userProgress.lastReviewedAt})`, endDate.toISOString().split('T')[0]));
+        }
+
+        const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+        // Get all progress data
+        const allProgress = await db
+            .select({
+                date: sql<string>`DATE(${userProgress.lastReviewedAt})`.as('date'),
+                userId: userProgress.userId,
+                wordId: userProgress.wordId,
+                correctCount: userProgress.correctCount,
+                incorrectCount: userProgress.incorrectCount,
+            })
+            .from(userProgress)
+            .where(whereClause);
+
+        const totalWordsReviewed = new Set(allProgress.map(p => `${p.userId}-${p.wordId}`)).size;
+        const totalCorrect = allProgress.reduce((sum, p) => sum + p.correctCount, 0);
+        const totalIncorrect = allProgress.reduce((sum, p) => sum + p.incorrectCount, 0);
+
+        const averageAccuracy =
+            totalCorrect + totalIncorrect > 0
+                ? (totalCorrect / (totalCorrect + totalIncorrect)) * 100
+                : 0;
+
+        // Count practice sessions (distinct user-date combinations)
+        const practiceSessions = new Set(
+            allProgress.map(p => `${p.userId}-${p.date}`)
+        ).size;
+
+        // Count test sessions (user-date combinations with 5+ words)
+        const dailyWordCounts = new Map<string, number>();
+        allProgress.forEach(p => {
+            const key = `${p.userId}-${p.date}`;
+            dailyWordCounts.set(key, (dailyWordCounts.get(key) || 0) + 1);
+        });
+
+        const testSessions = Array.from(dailyWordCounts.values()).filter(count => count >= 5).length;
+
+        // Calculate streaks
+        const userDates = new Set(allProgress.map(p => p.date));
+        const sortedDates = Array.from(userDates).sort().reverse();
+
+        let currentStreak = 0;
+        let longestStreak = 0;
+        let tempStreak = 0;
+        const today = new Date().toISOString().split('T')[0];
+        let lastDate: string | null = null;
+
+        sortedDates.forEach(date => {
+            if (lastDate === null) {
+                lastDate = date;
+                if (date === today) {
+                    currentStreak = 1;
+                    tempStreak = 1;
+                }
+            } else {
+                const lastDateObj = new Date(lastDate);
+                const dateObj = new Date(date);
+                const diffDays = Math.floor((lastDateObj.getTime() - dateObj.getTime()) / (1000 * 60 * 60 * 24));
+
+                if (diffDays === 1) {
+                    tempStreak++;
+                    if (lastDate === today) {
+                        currentStreak = tempStreak;
+                    }
+                } else {
+                    longestStreak = Math.max(longestStreak, tempStreak);
+                    tempStreak = 1;
+                }
+                lastDate = date;
+            }
+        });
+        longestStreak = Math.max(longestStreak, tempStreak);
+
+        const lastActivityDate = sortedDates.length > 0 ? sortedDates[0] : null;
+
+        return {
+            totalWordsReviewed,
+            totalPracticeSessions: practiceSessions,
+            totalTestSessions: testSessions,
+            averageAccuracy,
+            currentStreak,
+            longestStreak,
+            lastActivityDate,
+        };
+    } catch (error) {
+        console.error("Failed to fetch user activity summary:", error);
+        return {
+            totalWordsReviewed: 0,
+            totalPracticeSessions: 0,
+            totalTestSessions: 0,
+            averageAccuracy: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            lastActivityDate: null,
+        };
     }
 }
 

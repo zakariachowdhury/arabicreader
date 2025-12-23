@@ -1,9 +1,10 @@
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { getUnitById, getLessonsByUnit, getBookById } from "../../actions";
+import { getUnitById, getLessonsByUnit, getBookById, getUnitProgress, getLessonProgress } from "../../actions";
 import Link from "next/link";
 import { ArrowLeft, BookOpen, GraduationCap } from "lucide-react";
+import { ProgressBar, ProgressBadge } from "@/components/ProgressIndicator";
 
 export default async function UnitDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const session = await auth.api.getSession({
@@ -21,9 +22,10 @@ export default async function UnitDetailPage({ params }: { params: Promise<{ id:
         notFound();
     }
 
-    const [unit, lessons] = await Promise.all([
+    const [unit, lessons, unitProgress] = await Promise.all([
         getUnitById(unitId),
         getLessonsByUnit(unitId),
+        getUnitProgress(unitId),
     ]);
 
     if (!unit) {
@@ -31,6 +33,14 @@ export default async function UnitDetailPage({ params }: { params: Promise<{ id:
     }
 
     const book = await getBookById(unit.bookId);
+
+    // Get progress for each lesson (only for vocabulary lessons)
+    const lessonsWithProgress = await Promise.all(
+        lessons.map(async (lesson) => ({
+            ...lesson,
+            progress: lesson.type === "vocabulary" ? await getLessonProgress(lesson.id) : null,
+        }))
+    );
 
     return (
         <main className="py-12 px-4 sm:px-6 lg:px-8 font-sans bg-white min-h-screen">
@@ -45,11 +55,21 @@ export default async function UnitDetailPage({ params }: { params: Promise<{ id:
                     </Link>
                 </div>
                 <header className="mb-10">
-                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl mb-2">
-                        {unit.title}
-                    </h1>
+                    <div className="flex items-center justify-between mb-4">
+                        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl">
+                            {unit.title}
+                        </h1>
+                        {unitProgress.totalWords > 0 && (
+                            <ProgressBadge progress={unitProgress} />
+                        )}
+                    </div>
                     {book && (
-                        <p className="text-slate-500">From {book.title}</p>
+                        <p className="text-slate-500 mb-4">From {book.title}</p>
+                    )}
+                    {unitProgress.totalWords > 0 && (
+                        <div className="mt-4">
+                            <ProgressBar progress={unitProgress} />
+                        </div>
                     )}
                 </header>
 
@@ -60,7 +80,7 @@ export default async function UnitDetailPage({ params }: { params: Promise<{ id:
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {lessons.map((lesson) => (
+                        {lessonsWithProgress.map((lesson) => (
                             <Link
                                 key={lesson.id}
                                 href={lesson.type === "vocabulary" ? `/lessons/${lesson.id}/vocabulary` : `#`}
@@ -80,13 +100,25 @@ export default async function UnitDetailPage({ params }: { params: Promise<{ id:
                                             lesson.type === "vocabulary" ? "text-purple-600" : "text-slate-400"
                                         }`} />
                                     </div>
-                                    <div>
-                                        <h2 className="text-xl font-bold text-slate-900">{lesson.title}</h2>
-                                        <p className="text-sm text-slate-500 capitalize">{lesson.type}</p>
+                                    <div className="flex-1">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h2 className="text-xl font-bold text-slate-900">{lesson.title}</h2>
+                                                <p className="text-sm text-slate-500 capitalize">{lesson.type}</p>
+                                            </div>
+                                            {lesson.progress && lesson.progress.totalWords > 0 && (
+                                                <ProgressBadge progress={lesson.progress} />
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 {lesson.type !== "vocabulary" && (
                                     <p className="text-xs text-slate-400 mt-2">Coming soon</p>
+                                )}
+                                {lesson.progress && lesson.progress.totalWords > 0 && (
+                                    <div className="mt-4">
+                                        <ProgressBar progress={lesson.progress} size="sm" />
+                                    </div>
                                 )}
                             </Link>
                         ))}

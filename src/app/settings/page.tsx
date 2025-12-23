@@ -13,7 +13,8 @@ function SettingsContent() {
     const { data: session, isPending } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const activeTab = (searchParams.get("tab") || "profile") as SettingsTab;
+    const tabParam = searchParams.get("tab");
+    const activeTab = (tabParam || "profile") as SettingsTab;
 
     // Profile state
     const [newName, setNewName] = useState("");

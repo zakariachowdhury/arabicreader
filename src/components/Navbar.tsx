@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Github, Settings, Shield, BookOpen, CheckSquare } from "lucide-react";
+import { CheckCircle2, Github, Settings, Shield, BookOpen, CheckSquare, BarChart3 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { SignOutButton } from "./SignOutButton";
@@ -17,12 +17,12 @@ export async function Navbar() {
                 <div className="flex items-center gap-6">
                     <Link href="/" className="flex items-center gap-2 group">
                         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center group-hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">
-                            <CheckCircle2 className="text-white w-5 h-5" />
+                            <BookOpen className="text-white w-5 h-5" />
                         </div>
                         <span className="text-xl font-bold tracking-tight text-slate-900">{process.env.NEXT_PUBLIC_APP_NAME || "TaskFlow"}</span>
                     </Link>
                     <a
-                        href="https://github.com/zakariachowdhury/nextjs-todo"
+                        href="https://github.com/zakariachowdhury/arabic-reader"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="hidden sm:flex items-center gap-2 text-sm text-slate-400 hover:text-slate-900 transition-colors"
@@ -48,6 +48,13 @@ export async function Navbar() {
                                     title="Tasks"
                                 >
                                     <CheckSquare size={20} />
+                                </Link>
+                                <Link
+                                    href="/activity"
+                                    className="p-2.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-xl transition-all"
+                                    title="Activity"
+                                >
+                                    <BarChart3 size={20} />
                                 </Link>
                             </div>
 
