@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { VocabularyWord } from "@/db/schema";
-import { addVocabularyWord, updateVocabularyWord, deleteVocabularyWord } from "@/app/admin/actions";
-import { Edit2, Trash2, Save, X, Plus } from "lucide-react";
+import { addVocabularyWord, updateVocabularyWord, deleteVocabularyWord, bulkAddVocabularyWords } from "@/app/admin/actions";
+import { Edit2, Trash2, Save, X, Plus, Upload, Loader2, CheckCircle2 } from "lucide-react";
 
 export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { initialWords: VocabularyWord[]; lessonId: number; lessonTitle: string }) {
     const [words, setWords] = useState(initialWords);
@@ -12,6 +12,13 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
     const [isCreating, setIsCreating] = useState(false);
     const [newWord, setNewWord] = useState({ arabic: "", english: "", order: words.length });
     const [isPending, startTransition] = useTransition();
+    
+    // Image upload states
+    const [isUploading, setIsUploading] = useState(false);
+    const [parsedWords, setParsedWords] = useState<Array<{ arabic: string; english: string }> | null>(null);
+    const [showParsedWords, setShowParsedWords] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleEdit = (word: VocabularyWord) => {
         setEditingId(word.id);
@@ -92,6 +99,77 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
         });
     };
 
+    const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith("image/")) {
+            setUploadError("Please select an image file");
+            return;
+        }
+
+        setIsUploading(true);
+        setUploadError(null);
+        setParsedWords(null);
+        setShowParsedWords(false);
+
+        try {
+            const formData = new FormData();
+            formData.append("image", file);
+
+            const response = await fetch("/api/admin/parse-vocabulary-image", {
+                method: "POST",
+                body: formData,
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to parse image");
+            }
+
+            if (data.wordPairs && data.wordPairs.length > 0) {
+                setParsedWords(data.wordPairs);
+                setShowParsedWords(true);
+            } else {
+                setUploadError("No word pairs found in the image. Please try another image.");
+            }
+        } catch (error) {
+            console.error("Error parsing image:", error);
+            setUploadError(error instanceof Error ? error.message : "Failed to parse image");
+        } finally {
+            setIsUploading(false);
+            // Reset file input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
+        }
+    };
+
+    const handleBulkAdd = async () => {
+        if (!parsedWords || parsedWords.length === 0) return;
+
+        startTransition(async () => {
+            try {
+                const created = await bulkAddVocabularyWords(lessonId, parsedWords);
+                setWords([...words, ...created]);
+                setParsedWords(null);
+                setShowParsedWords(false);
+                setUploadError(null);
+            } catch (error) {
+                console.error("Failed to bulk add vocabulary words:", error);
+                alert("Failed to add vocabulary words. Please try again.");
+            }
+        });
+    };
+
+    const handleCancelParsed = () => {
+        setParsedWords(null);
+        setShowParsedWords(false);
+        setUploadError(null);
+    };
+
     return (
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
@@ -99,16 +177,142 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
                     <h2 className="text-2xl font-bold text-slate-900">Vocabulary: {lessonTitle}</h2>
                     <p className="text-slate-500 mt-1">Manage Arabic-English word pairs</p>
                 </div>
-                {!isCreating && (
-                    <button
-                        onClick={() => setIsCreating(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Add Word Pair
-                    </button>
+                {!isCreating && !showParsedWords && (
+                    <div className="flex items-center gap-2">
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="hidden"
+                            id="image-upload"
+                        />
+                        <label
+                            htmlFor="image-upload"
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors cursor-pointer ${
+                                isUploading
+                                    ? "bg-slate-400 text-white cursor-not-allowed"
+                                    : "bg-purple-600 text-white hover:bg-purple-700"
+                            }`}
+                        >
+                            {isUploading ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Parsing...
+                                </>
+                            ) : (
+                                <>
+                                    <Upload className="w-4 h-4" />
+                                    Upload Image
+                                </>
+                            )}
+                        </label>
+                        <button
+                            onClick={() => setIsCreating(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Add Word Pair
+                        </button>
+                    </div>
                 )}
             </div>
+
+            {uploadError && (
+                <div className="p-4 mx-6 mt-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                    {uploadError}
+                </div>
+            )}
+
+            {showParsedWords && parsedWords && (
+                <div className="p-6 border-b border-slate-100 bg-purple-50">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 className="text-lg font-semibold text-slate-900">
+                                Extracted Word Pairs ({parsedWords.length})
+                            </h3>
+                            <p className="text-sm text-slate-600 mt-1">
+                                Review the extracted word pairs below. You can edit them before adding.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleBulkAdd}
+                                disabled={isPending || parsedWords.length === 0}
+                                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                            >
+                                <CheckCircle2 className="w-4 h-4" />
+                                Add All ({parsedWords.length})
+                            </button>
+                            <button
+                                onClick={handleCancelParsed}
+                                disabled={isPending}
+                                className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors disabled:opacity-50"
+                            >
+                                <X className="w-4 h-4 inline mr-2" />
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto border border-slate-200 rounded-lg bg-white">
+                        <table className="w-full">
+                            <thead className="bg-slate-50 sticky top-0">
+                                <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Arabic</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">English</th>
+                                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {parsedWords.map((word, index) => (
+                                    <tr key={index} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="text"
+                                                value={word.arabic}
+                                                onChange={(e) => {
+                                                    const updated = [...parsedWords];
+                                                    updated[index].arabic = e.target.value;
+                                                    setParsedWords(updated);
+                                                }}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                dir="rtl"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="text"
+                                                value={word.english}
+                                                onChange={(e) => {
+                                                    const updated = [...parsedWords];
+                                                    updated[index].english = e.target.value;
+                                                    setParsedWords(updated);
+                                                }}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-right">
+                                            <button
+                                                onClick={() => {
+                                                    const updated = parsedWords.filter((_, i) => i !== index);
+                                                    setParsedWords(updated);
+                                                    if (updated.length === 0) {
+                                                        setShowParsedWords(false);
+                                                    }
+                                                }}
+                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="Remove"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {isCreating && (
                 <div className="p-6 border-b border-slate-100 bg-slate-50">

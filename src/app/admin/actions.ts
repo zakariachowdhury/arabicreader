@@ -706,3 +706,58 @@ export async function deleteVocabularyWord(id: number) {
     }
 }
 
+export async function bulkAddVocabularyWords(
+    lessonId: number,
+    words: Array<{ arabic: string; english: string; order?: number }>
+) {
+    await requireAdmin();
+
+    try {
+        // Verify lesson exists and is vocabulary type
+        const lesson = await getLessonById(lessonId);
+        if (!lesson) {
+            throw new Error("Lesson not found");
+        }
+        if (lesson.type !== "vocabulary") {
+            throw new Error("Lesson is not a vocabulary lesson");
+        }
+
+        if (!words || words.length === 0) {
+            throw new Error("No words provided");
+        }
+
+        // Get current max order for this lesson
+        const existingWords = await db
+            .select({ order: vocabularyWords.order })
+            .from(vocabularyWords)
+            .where(eq(vocabularyWords.lessonId, lessonId))
+            .orderBy(desc(vocabularyWords.order))
+            .limit(1);
+
+        let startOrder = 0;
+        if (existingWords.length > 0 && existingWords[0].order !== null) {
+            startOrder = existingWords[0].order + 1;
+        }
+
+        // Insert all words
+        const newWords = await db
+            .insert(vocabularyWords)
+            .values(
+                words.map((word, index) => ({
+                    lessonId,
+                    arabic: word.arabic.trim(),
+                    english: word.english.trim(),
+                    order: word.order ?? startOrder + index,
+                }))
+            )
+            .returning();
+
+        revalidatePath(`/admin/lessons/${lessonId}/vocabulary`);
+        revalidatePath("/admin");
+        return newWords;
+    } catch (error) {
+        console.error("Failed to bulk add vocabulary words:", error);
+        throw new Error("Failed to bulk add vocabulary words");
+    }
+}
+

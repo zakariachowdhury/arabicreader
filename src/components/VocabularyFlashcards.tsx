@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from "react";
 import { VocabularyWord, UserProgress } from "@/db/schema";
 import { updateUserProgress } from "@/app/actions";
-import { BookOpen, ChevronLeft, ChevronRight, RotateCcw, CheckCircle2, XCircle, Eye } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, RotateCcw, CheckCircle2, XCircle, Eye, Volume2, VolumeX } from "lucide-react";
 
 type Mode = "learn" | "practice" | "test";
 
@@ -43,6 +43,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId }: Vocab
     const [testSubmitted, setTestSubmitted] = useState(false);
     const [progress, setProgress] = useState(initialProgress);
     const [isPending, startTransition] = useTransition();
+    const [speaking, setSpeaking] = useState<{ arabic: boolean; english: boolean }>({ arabic: false, english: false });
 
     const currentWord = words[currentIndex];
     const currentProgress = currentWord ? progress[currentWord.id] : null;
@@ -92,6 +93,9 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId }: Vocab
         if (currentIndex < words.length - 1) {
             setCurrentIndex(currentIndex + 1);
             setIsFlipped(false);
+            // Stop any speaking when moving to next word
+            window.speechSynthesis.cancel();
+            setSpeaking({ arabic: false, english: false });
         }
     };
 
@@ -99,6 +103,9 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId }: Vocab
         if (currentIndex > 0) {
             setCurrentIndex(currentIndex - 1);
             setIsFlipped(false);
+            // Stop any speaking when moving to previous word
+            window.speechSynthesis.cancel();
+            setSpeaking({ arabic: false, english: false });
         }
     };
 
@@ -172,6 +179,72 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId }: Vocab
             }
         });
     };
+
+    // Text-to-speech function
+    const speakText = (text: string, lang: "ar" | "en", type: "arabic" | "english") => {
+        if (!("speechSynthesis" in window)) {
+            alert("Text-to-speech is not supported in your browser.");
+            return;
+        }
+
+        // Stop any currently speaking
+        window.speechSynthesis.cancel();
+        setSpeaking({ arabic: false, english: false });
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = lang === "ar" ? "ar-SA" : "en-US";
+        utterance.rate = 0.9;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+
+        // Try to get voices immediately
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0) {
+            const preferredVoice = voices.find(
+                voice => lang === "ar" 
+                    ? voice.lang.startsWith("ar") 
+                    : voice.lang.startsWith("en")
+            );
+            if (preferredVoice) {
+                utterance.voice = preferredVoice;
+            }
+        }
+
+        setSpeaking(prev => ({ ...prev, [type]: true }));
+
+        utterance.onend = () => {
+            setSpeaking(prev => ({ ...prev, [type]: false }));
+        };
+
+        utterance.onerror = () => {
+            setSpeaking(prev => ({ ...prev, [type]: false }));
+        };
+
+        window.speechSynthesis.speak(utterance);
+    };
+
+    // Load voices when component mounts
+    useEffect(() => {
+        if ("speechSynthesis" in window) {
+            // Some browsers load voices asynchronously
+            const loadVoices = () => {
+                window.speechSynthesis.getVoices();
+            };
+            loadVoices();
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = loadVoices;
+            }
+        }
+    }, []);
+
+    // Cleanup: stop speech when component unmounts or mode changes
+    useEffect(() => {
+        return () => {
+            if ("speechSynthesis" in window) {
+                window.speechSynthesis.cancel();
+            }
+        };
+    }, [mode]);
 
     if (words.length === 0) {
         return (
@@ -253,13 +326,39 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId }: Vocab
                 <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-12 min-h-[400px] flex flex-col items-center justify-center">
                     <div className="text-center space-y-6 w-full">
                         <div>
-                            <p className="text-sm text-slate-500 mb-2">Arabic</p>
+                            <div className="flex items-center justify-center gap-3 mb-2">
+                                <p className="text-sm text-slate-500">Arabic</p>
+                                <button
+                                    onClick={() => speakText(currentWord.arabic, "ar", "arabic")}
+                                    className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                    title="Listen to Arabic pronunciation"
+                                >
+                                    {speaking.arabic ? (
+                                        <VolumeX className="w-5 h-5" />
+                                    ) : (
+                                        <Volume2 className="w-5 h-5" />
+                                    )}
+                                </button>
+                            </div>
                             <p className="text-4xl font-bold text-slate-900" dir="rtl">
                                 {currentWord.arabic}
                             </p>
                         </div>
                         <div className="border-t border-slate-200 pt-6">
-                            <p className="text-sm text-slate-500 mb-2">English</p>
+                            <div className="flex items-center justify-center gap-3 mb-2">
+                                <p className="text-sm text-slate-500">English</p>
+                                <button
+                                    onClick={() => speakText(currentWord.english, "en", "english")}
+                                    className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                    title="Listen to English pronunciation"
+                                >
+                                    {speaking.english ? (
+                                        <VolumeX className="w-5 h-5" />
+                                    ) : (
+                                        <Volume2 className="w-5 h-5" />
+                                    )}
+                                </button>
+                            </div>
                             <p className="text-3xl font-semibold text-slate-700">
                                 {currentWord.english}
                             </p>
@@ -278,7 +377,23 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId }: Vocab
                         {/* Front of card - Arabic */}
                         <div className="flashcard-front text-center space-y-6 w-full">
                             <div>
-                                <p className="text-sm text-slate-500 mb-2 font-medium">Arabic</p>
+                                <div className="flex items-center justify-center gap-3 mb-2">
+                                    <p className="text-sm text-slate-500 font-medium">Arabic</p>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            speakText(currentWord.arabic, "ar", "arabic");
+                                        }}
+                                        className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                        title="Listen to Arabic pronunciation"
+                                    >
+                                        {speaking.arabic ? (
+                                            <VolumeX className="w-5 h-5" />
+                                        ) : (
+                                            <Volume2 className="w-5 h-5" />
+                                        )}
+                                    </button>
+                                </div>
                                 <p className="text-4xl font-bold text-slate-900" dir="rtl">
                                     {currentWord.arabic}
                                 </p>
@@ -289,7 +404,23 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId }: Vocab
                         {/* Back of card - English */}
                         <div className="flashcard-back text-center space-y-6 w-full">
                             <div>
-                                <p className="text-sm text-slate-500 mb-2 font-medium">English</p>
+                                <div className="flex items-center justify-center gap-3 mb-2">
+                                    <p className="text-sm text-slate-500 font-medium">English</p>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            speakText(currentWord.english, "en", "english");
+                                        }}
+                                        className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                        title="Listen to English pronunciation"
+                                    >
+                                        {speaking.english ? (
+                                            <VolumeX className="w-5 h-5" />
+                                        ) : (
+                                            <Volume2 className="w-5 h-5" />
+                                        )}
+                                    </button>
+                                </div>
                                 <p className="text-3xl font-semibold text-slate-700">
                                     {currentWord.english}
                                 </p>
@@ -339,7 +470,20 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId }: Vocab
                                         className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6"
                                     >
                                         <div className="mb-4">
-                                            <p className="text-sm text-slate-500 mb-2">Question {index + 1}</p>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <p className="text-sm text-slate-500">Question {index + 1}</p>
+                                                <button
+                                                    onClick={() => speakText(word.arabic, "ar", "arabic")}
+                                                    className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                                    title="Listen to Arabic pronunciation"
+                                                >
+                                                    {speaking.arabic ? (
+                                                        <VolumeX className="w-5 h-5" />
+                                                    ) : (
+                                                        <Volume2 className="w-5 h-5" />
+                                                    )}
+                                                </button>
+                                            </div>
                                             <p className="text-3xl font-bold text-slate-900 mb-6" dir="rtl">
                                                 {word.arabic}
                                             </p>
@@ -407,15 +551,41 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId }: Vocab
                                             <XCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
                                         )}
                                         <div className="flex-1">
-                                            <p className="text-2xl font-bold text-slate-900 mb-2" dir="rtl">
-                                                {word.arabic}
-                                            </p>
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <p className="text-2xl font-bold text-slate-900" dir="rtl">
+                                                    {word.arabic}
+                                                </p>
+                                                <button
+                                                    onClick={() => speakText(word.arabic, "ar", "arabic")}
+                                                    className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                                    title="Listen to Arabic pronunciation"
+                                                >
+                                                    {speaking.arabic ? (
+                                                        <VolumeX className="w-5 h-5" />
+                                                    ) : (
+                                                        <Volume2 className="w-5 h-5" />
+                                                    )}
+                                                </button>
+                                            </div>
                                             <p className="text-lg text-slate-700 mb-1">
                                                 Your answer: <span className="font-semibold">{testAnswers[word.id] || "(not answered)"}</span>
                                             </p>
-                                            <p className="text-lg text-slate-700">
-                                                Correct answer: <span className="font-semibold text-emerald-600">{word.english}</span>
-                                            </p>
+                                            <div className="flex items-center gap-3">
+                                                <p className="text-lg text-slate-700">
+                                                    Correct answer: <span className="font-semibold text-emerald-600">{word.english}</span>
+                                                </p>
+                                                <button
+                                                    onClick={() => speakText(word.english, "en", "english")}
+                                                    className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                                    title="Listen to English pronunciation"
+                                                >
+                                                    {speaking.english ? (
+                                                        <VolumeX className="w-5 h-5" />
+                                                    ) : (
+                                                        <Volume2 className="w-5 h-5" />
+                                                    )}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
