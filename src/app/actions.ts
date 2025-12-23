@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { todos, verification, user, groups, settings, books, units, lessons, vocabularyWords, userProgress } from "@/db/schema";
-import { eq, asc, and, desc, inArray, sql, gte, lte } from "drizzle-orm";
+import { eq, asc, and, inArray, sql, gte, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -568,6 +568,1051 @@ export async function resendVerificationEmail() {
 export interface ConversationMessage {
     role: "user" | "assistant";
     content: string;
+    navigationLinks?: Array<{ label: string; url: string }>;
+    result?: {
+        actions?: Array<{ type: string; data?: Record<string, unknown> }>;
+    };
+}
+
+// Type definitions for AI learning processing
+export type LearningActionType = "explain" | "search" | "navigate" | "practice" | "test";
+
+export interface LearningAction {
+    type: LearningActionType;
+    data?: {
+        query?: string;
+        bookId?: number;
+        unitId?: number;
+        lessonId?: number;
+        wordId?: number;
+        searchResults?: Array<{
+            type: "book" | "unit" | "lesson" | "vocabulary";
+            id: number;
+            title: string;
+            arabic?: string;
+            english?: string;
+            path: string;
+        }>;
+        navigationLinks?: Array<{
+            label: string;
+            url: string;
+        }>;
+        explanation?: string;
+        practiceSuggestions?: Array<{
+            type: string;
+            description: string;
+            url?: string;
+        }>;
+        testQuestions?: Array<{
+            question: string;
+            type: "translation" | "multiple_choice";
+            options?: string[];
+            correctAnswer: string;
+        }>;
+    };
+}
+
+export interface AILearningResponse {
+    message: string;
+    actions?: LearningAction[];
+    navigationLinks?: Array<{
+        label: string;
+        url: string;
+    }>;
+}
+
+export interface ProcessAILearningResult {
+    success: boolean;
+    message: string;
+    actions?: LearningAction[];
+    navigationLinks?: Array<{
+        label: string;
+        url: string;
+    }>;
+    error?: string;
+}
+
+// Navigation helper functions
+export async function getBookNavigationUrl(bookId: number): Promise<string> {
+    return `/books/${bookId}`;
+}
+
+export async function getUnitNavigationUrl(unitId: number): Promise<string> {
+    return `/units/${unitId}`;
+}
+
+export async function getLessonNavigationUrl(lessonId: number, lessonType: string, mode?: "learn" | "practice" | "test"): Promise<string> {
+    if (lessonType === "vocabulary") {
+        if (mode === "learn") {
+            return `/lessons/${lessonId}/learn`;
+        } else if (mode === "practice") {
+            return `/lessons/${lessonId}/practice`;
+        } else if (mode === "test") {
+            return `/lessons/${lessonId}/test`;
+        }
+        return `/lessons/${lessonId}/vocabulary`;
+    }
+    return `/units/${lessonId}`; // Fallback
+}
+
+// Find vocabulary word and its lesson info
+export async function findVocabularyWord(arabicText?: string, englishText?: string) {
+    const session = await getSession();
+    if (!session) return null;
+
+    try {
+        const allBooks = await getBooks();
+        
+        for (const book of allBooks) {
+            const units = await getUnitsByBook(book.id);
+            for (const unit of units) {
+                const lessons = await getLessonsByUnit(unit.id);
+                for (const lesson of lessons) {
+                    if (lesson.type === "vocabulary") {
+                        const words = await getVocabularyWordsByLesson(lesson.id);
+                        for (const word of words) {
+                            const matchesArabic = arabicText && word.arabic.includes(arabicText);
+                            const matchesEnglish = englishText && word.english.toLowerCase().includes(englishText.toLowerCase());
+                            
+                            if (matchesArabic || matchesEnglish) {
+                                return {
+                                    word,
+                                    lesson,
+                                    unit,
+                                    book,
+                                    navigationUrl: await getLessonNavigationUrl(lesson.id, lesson.type),
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return null;
+    } catch (error) {
+        console.error("Failed to find vocabulary word:", error);
+        return null;
+    }
+}
+
+// Search functionality
+export async function searchLearningContent(query: string) {
+    const session = await getSession();
+    if (!session) return [];
+
+    try {
+        const searchResults: Array<{
+            type: "book" | "unit" | "lesson" | "vocabulary";
+            id: number;
+            title: string;
+            arabic?: string;
+            english?: string;
+            path: string;
+            bookTitle?: string;
+            unitTitle?: string;
+        }> = [];
+
+        const lowerQuery = query.toLowerCase().trim();
+
+        // Search books
+        const allBooks = await getBooks();
+        for (const book of allBooks) {
+            if (
+                book.title.toLowerCase().includes(lowerQuery) ||
+                (book.description && book.description.toLowerCase().includes(lowerQuery))
+            ) {
+                searchResults.push({
+                    type: "book",
+                    id: book.id,
+                    title: book.title,
+                    path: await getBookNavigationUrl(book.id),
+                });
+            }
+        }
+
+        // Search units
+        for (const book of allBooks) {
+            const units = await getUnitsByBook(book.id);
+            for (const unit of units) {
+                if (unit.title.toLowerCase().includes(lowerQuery)) {
+                    searchResults.push({
+                        type: "unit",
+                        id: unit.id,
+                        title: unit.title,
+                        path: await getUnitNavigationUrl(unit.id),
+                        bookTitle: book.title,
+                    });
+                }
+            }
+        }
+
+        // Search lessons
+        for (const book of allBooks) {
+            const units = await getUnitsByBook(book.id);
+            for (const unit of units) {
+                const lessons = await getLessonsByUnit(unit.id);
+                for (const lesson of lessons) {
+                    if (lesson.title.toLowerCase().includes(lowerQuery)) {
+                        searchResults.push({
+                            type: "lesson",
+                            id: lesson.id,
+                            title: lesson.title,
+                            path: await getLessonNavigationUrl(lesson.id, lesson.type),
+                            bookTitle: book.title,
+                            unitTitle: unit.title,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Search vocabulary words
+        for (const book of allBooks) {
+            const units = await getUnitsByBook(book.id);
+            for (const unit of units) {
+                const lessons = await getLessonsByUnit(unit.id);
+                for (const lesson of lessons) {
+                    if (lesson.type === "vocabulary") {
+                        const words = await getVocabularyWordsByLesson(lesson.id);
+                        for (const word of words) {
+                            if (
+                                word.arabic.includes(query) ||
+                                word.english.toLowerCase().includes(lowerQuery)
+                            ) {
+                                searchResults.push({
+                                    type: "vocabulary",
+                                    id: word.id,
+                                    title: `${word.arabic} - ${word.english}`,
+                                    arabic: word.arabic,
+                                    english: word.english,
+                                    path: await getLessonNavigationUrl(lesson.id, lesson.type),
+                                    bookTitle: book.title,
+                                    unitTitle: unit.title,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return searchResults.slice(0, 20); // Limit to 20 results
+    } catch (error) {
+        console.error("Failed to search learning content:", error);
+        return [];
+    }
+}
+
+// Test generation
+export async function generateTestFromLesson(lessonId: number, questionCount: number = 10) {
+    const session = await getSession();
+    if (!session) return null;
+
+    try {
+        const words = await getVocabularyWordsByLesson(lessonId);
+        if (words.length === 0) return null;
+
+        // Shuffle and take up to questionCount words
+        const shuffled = [...words].sort(() => Math.random() - 0.5);
+        const selectedWords = shuffled.slice(0, Math.min(questionCount, words.length));
+
+        const questions = selectedWords.map((word, index) => {
+            // Alternate between Arabic->English and English->Arabic
+            const isArabicToEnglish = index % 2 === 0;
+
+            if (isArabicToEnglish) {
+                // Generate multiple choice options
+                const otherWords = words.filter(w => w.id !== word.id);
+                const wrongOptions = otherWords
+                    .sort(() => Math.random() - 0.5)
+                    .slice(0, 3)
+                    .map(w => w.english);
+                const options = [word.english, ...wrongOptions].sort(() => Math.random() - 0.5);
+
+                return {
+                    question: `What does "${word.arabic}" mean?`,
+                    type: "multiple_choice" as const,
+                    options,
+                    correctAnswer: word.english,
+                };
+            } else {
+                // English to Arabic (translation)
+                return {
+                    question: `Translate "${word.english}" to Arabic`,
+                    type: "translation" as const,
+                    correctAnswer: word.arabic,
+                };
+            }
+        });
+
+        return {
+            lessonId,
+            questions,
+            totalQuestions: questions.length,
+        };
+    } catch (error) {
+        console.error("Failed to generate test from lesson:", error);
+        return null;
+    }
+}
+
+export async function processAILearningRequest(
+    prompt: string,
+    model: string,
+    conversationHistory?: ConversationMessage[]
+): Promise<ProcessAILearningResult> {
+    const session = await getSession();
+    if (!session) {
+        return {
+            success: false,
+            message: "Unauthorized",
+            error: "You must be logged in to use AI features",
+        };
+    }
+
+    // Check if AI is available for this user
+    const aiAvailable = await isAIAvailableForUser();
+    if (!aiAvailable) {
+        return {
+            success: false,
+            message: "AI features are currently disabled",
+            error: "AI features are disabled globally or for your account. Please contact an administrator.",
+        };
+    }
+
+    try {
+        // Get learning data for context
+        const [allBooks, allBooksProgress] = await Promise.all([
+            getBooks(),
+            getAllBooksProgress(),
+        ]);
+
+        // Build learning structure context
+        let learningStructure = "Available learning content:\n";
+        const vocabularyWordsList: Array<{ arabic: string; english: string; lessonId: number; bookTitle: string; unitTitle: string; lessonTitle: string }> = [];
+
+        for (const book of allBooks) {
+            const progress = allBooksProgress[book.id] || {
+                totalWords: 0,
+                wordsSeen: 0,
+                wordsMastered: 0,
+                completionPercentage: 0,
+                lastActivityDate: null,
+            };
+
+            learningStructure += `\nBook ${book.id}: "${book.title}"${book.description ? ` - ${book.description}` : ""}\n`;
+            learningStructure += `  Progress: ${progress.wordsSeen}/${progress.totalWords} words seen, ${progress.wordsMastered} mastered (${progress.completionPercentage.toFixed(0)}%)\n`;
+
+            const units = await getUnitsByBook(book.id);
+            for (const unit of units) {
+                learningStructure += `  Unit ${unit.id}: "${unit.title}"\n`;
+
+                const lessons = await getLessonsByUnit(unit.id);
+                for (const lesson of lessons) {
+                    learningStructure += `    Lesson ${lesson.id}: "${lesson.title}" (${lesson.type})\n`;
+
+                    if (lesson.type === "vocabulary") {
+                        const words = await getVocabularyWordsByLesson(lesson.id);
+                        const lessonProgress = await getLessonProgress(lesson.id);
+                        learningStructure += `      Vocabulary: ${words.length} words (${lessonProgress.wordsSeen} seen, ${lessonProgress.wordsMastered} mastered)\n`;
+
+                        // Add words to vocabulary list
+                        words.forEach(word => {
+                            vocabularyWordsList.push({
+                                arabic: word.arabic,
+                                english: word.english,
+                                lessonId: lesson.id,
+                                bookTitle: book.title,
+                                unitTitle: unit.title,
+                                lessonTitle: lesson.title,
+                            });
+                        });
+                    }
+                }
+            }
+        }
+
+        // Build vocabulary context (limit to avoid token overflow)
+        const vocabularyContext = vocabularyWordsList.length > 0
+            ? `\n\nVocabulary words (showing up to 100):\n${vocabularyWordsList.slice(0, 100).map((w, i) => `${i + 1}. "${w.arabic}" = "${w.english}" (Lesson: ${w.lessonTitle}, Unit: ${w.unitTitle}, Book: ${w.bookTitle})`).join("\n")}`
+            : "\n\nNo vocabulary words available yet.";
+
+        // Get user's progress summary
+        const progressSummary = Object.entries(allBooksProgress)
+            .map(([bookId, progress]) => {
+                const book = allBooks.find(b => b.id === parseInt(bookId));
+                return book ? `"${book.title}": ${progress.wordsSeen}/${progress.totalWords} words seen, ${progress.completionPercentage.toFixed(0)}% complete` : "";
+            })
+            .filter(Boolean)
+            .join("\n");
+
+        const systemPrompt = `You are a helpful AI assistant for an Arabic learning platform. Your role is to help users learn, practice, search, navigate, and test their Arabic vocabulary knowledge.
+
+${learningStructure}${vocabularyContext}
+
+User's Progress Summary:
+${progressSummary || "No progress data available yet."}
+
+You can help users with the following:
+
+1. **EXPLAIN** - Answer questions about Arabic vocabulary, grammar, or concepts
+   - When explaining a word, provide its meaning, usage, and context
+   - Reference the vocabulary list above for accurate information
+   - IMPORTANT: When explaining a vocabulary word, include the word's Arabic text and English translation in your explanation so the system can automatically generate a navigation link
+   - Example: If explaining "welcome", mention both the Arabic (أهلاً وسهلاً) and English (welcome) so users can navigate to that lesson
+
+2. **SEARCH** - Search for content across books, units, lessons, and vocabulary
+   - Search by keywords in titles, descriptions, or vocabulary words
+   - Return relevant results with navigation paths
+
+3. **NAVIGATE** - Help users navigate to specific content
+   - Generate navigation links to books, units, or lessons
+   - Use the structure above to find the correct paths
+
+4. **PRACTICE** - Suggest practice exercises based on user progress
+   - Recommend words that need review (low correct_count or not seen)
+   - Suggest lessons to practice based on completion percentage
+   - Provide actionable practice recommendations
+   - ALWAYS include navigation links to suggested lessons so users can resume learning immediately
+   - When suggesting practice for a specific lesson, ALWAYS include the lesson URL in the practiceSuggestions array
+   - Example: If suggesting "Practice Lesson 1.3", include url: "/lessons/{lessonId}/vocabulary" in the practice suggestion
+
+5. **TEST** - Generate quiz questions from lessons
+   - Create translation questions (Arabic to English or vice versa)
+   - Create multiple choice questions
+   - Use vocabulary from the lessons listed above
+
+6. **RESUME LEARNING** - Help users continue their learning journey
+   - When users ask about what to study next, where they left off, or want to continue learning, ALWAYS provide direct navigation links to:
+     * Lessons they haven't started yet (0% progress)
+     * Lessons they've started but not completed (partial progress)
+     * Lessons with recent activity (based on lastActivityDate)
+   - Use the progress data above to identify the best lessons to suggest
+   - Format: "Continue with [Lesson Name]" with a direct link to /lessons/{lessonId}/vocabulary
+   - Example: If a user asks "What should I study next?" or "Where did I leave off?", suggest specific lessons with links
+
+CRITICAL: You MUST respond with ONLY valid JSON. No additional text, explanations, or markdown formatting outside the JSON.
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "message": "Human-readable response explaining what you did (1-3 sentences)",
+  "actions": [
+    {
+      "type": "explain|search|navigate|practice|test",
+      "data": {
+        "explanation": "...", // for explain
+        "searchResults": [...], // for search
+        "navigationLinks": [...], // for navigate
+        "practiceSuggestions": [...], // for practice
+        "testQuestions": [...] // for test
+      }
+    }
+  ],
+  "navigationLinks": [
+    {"label": "Display text", "url": "/books/1"}
+  ]
+}
+
+For navigation links, use these URL patterns:
+- Books: /books/{bookId}
+- Units: /units/{unitId}
+- Lessons: 
+  - /lessons/{lessonId}/vocabulary (default vocabulary lesson)
+  - /lessons/{lessonId}/learn (learn mode - flashcards)
+  - /lessons/{lessonId}/practice (practice mode - interactive practice)
+  - /lessons/{lessonId}/test (test mode - quiz/test)
+
+For search results, include:
+- type: "book" | "unit" | "lesson" | "vocabulary"
+- id: number
+- title: string
+- path: string (navigation URL)
+- arabic/english: for vocabulary items
+
+For practice suggestions, include:
+- type: "review_words" | "practice_lesson" | "continue_learning"
+- description: string
+- url: REQUIRED navigation URL (always include a URL when suggesting practice for a specific lesson)
+
+For test questions, include:
+- question: string
+- type: "translation" | "multiple_choice"
+- options: string[] (for multiple_choice)
+- correctAnswer: string
+
+Important:
+- Always provide helpful, educational responses
+- Use the vocabulary list and structure above for accurate information
+- When suggesting practice, consider the user's progress data
+- Navigation links should be clickable paths to actual content
+- Keep responses concise but informative
+- If the user's request is unclear, ask for clarification in the message field
+- You have access to FULL conversation history for context - use it to understand the full conversation flow
+- ALWAYS include navigation links when suggesting lessons, practice, or helping users resume learning
+- When users ask about continuing their learning, proactively suggest specific lessons with direct links
+- ALWAYS return complete, valid JSON - do not truncate`;
+
+        // Build messages array with conversation history
+        const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+            { role: "system", content: systemPrompt },
+        ];
+
+        // Add conversation history if provided (send full context, no limit)
+        if (conversationHistory && conversationHistory.length > 0) {
+            conversationHistory.forEach(msg => {
+                // Build enriched content that includes navigation links and context
+                let enrichedContent = msg.content;
+                
+                // Add navigation links context if available
+                if (msg.navigationLinks && msg.navigationLinks.length > 0) {
+                    enrichedContent += `\n\n[Previous response included these navigation links: ${msg.navigationLinks.map(link => `${link.label} (${link.url})`).join(", ")}]`;
+                }
+                
+                // Add action context if available
+                if (msg.result?.actions && msg.result.actions.length > 0) {
+                    const actionTypes = msg.result.actions.map(a => a.type).join(", ");
+                    enrichedContent += `\n[Previous response performed actions: ${actionTypes}]`;
+                }
+                
+                messages.push({
+                    role: msg.role,
+                    content: enrichedContent,
+                });
+            });
+        }
+
+        // Add current user prompt
+        messages.push({ role: "user", content: prompt });
+
+        // Call OpenRouter
+        const { callOpenRouter } = await import("@/lib/openrouter");
+        const response = await callOpenRouter(model, messages, {
+            temperature: 0.7, // Higher temperature for more natural explanations
+            max_tokens: 3000,
+        });
+
+        // Extract response content
+        const responseContent = response.choices[0]?.message?.content || "";
+
+        // Check if response was truncated
+        const finishReason = response.choices[0]?.finish_reason;
+        if (finishReason === "length") {
+            return {
+                success: false,
+                message: "AI response was too long and got truncated. Please try rephrasing your request.",
+                error: "Response truncated due to token limit",
+            };
+        }
+
+        // Parse JSON response
+        let aiResponse: AILearningResponse | null = null;
+        try {
+            let cleanedContent = responseContent.trim();
+            cleanedContent = cleanedContent.replace(/^```json\s*/i, "").replace(/^```\s*/i, "");
+            cleanedContent = cleanedContent.replace(/\s*```\s*$/i, "");
+
+            // Find the first complete JSON object by matching braces properly
+            let jsonString = "";
+            let braceCount = 0;
+            let inString = false;
+            let escapeNext = false;
+            let startIndex = -1;
+
+            for (let i = 0; i < cleanedContent.length; i++) {
+                const char = cleanedContent[i];
+
+                if (escapeNext) {
+                    escapeNext = false;
+                    if (startIndex >= 0) jsonString += char;
+                    continue;
+                }
+
+                if (char === '\\') {
+                    escapeNext = true;
+                    if (startIndex >= 0) jsonString += char;
+                    continue;
+                }
+
+                if (char === '"' && !escapeNext) {
+                    inString = !inString;
+                    if (startIndex >= 0) jsonString += char;
+                    continue;
+                }
+
+                if (inString) {
+                    if (startIndex >= 0) jsonString += char;
+                    continue;
+                }
+
+                if (char === '{') {
+                    if (startIndex === -1) {
+                        startIndex = i;
+                    }
+                    braceCount++;
+                    jsonString += char;
+                } else if (char === '}') {
+                    if (startIndex >= 0) {
+                        jsonString += char;
+                        braceCount--;
+                        if (braceCount === 0) {
+                            // Found complete JSON object
+                            break;
+                        }
+                    }
+                } else if (startIndex >= 0) {
+                    jsonString += char;
+                }
+            }
+
+            // If we didn't find a complete JSON object, try the regex fallback
+            if (braceCount !== 0 || startIndex === -1) {
+                // Try multiple patterns to find JSON
+                const jsonPatterns = [
+                    /\{[\s\S]*\}/,  // Any JSON object
+                    /\{[\s\S]*"message"[\s\S]*\}/,  // JSON with message field
+                ];
+                
+                for (const pattern of jsonPatterns) {
+                    const jsonMatch = cleanedContent.match(pattern);
+                    if (jsonMatch) {
+                        jsonString = jsonMatch[0];
+                        break;
+                    }
+                }
+                
+                // If still no JSON found, try to extract from markdown/text response
+                if (!jsonString || jsonString.trim() === "") {
+                    // Extract navigation links from markdown/text
+                    const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+                    const links: Array<{ label: string; url: string }> = [];
+                    let linkMatch;
+                    while ((linkMatch = linkPattern.exec(cleanedContent)) !== null) {
+                        links.push({
+                            label: linkMatch[1],
+                            url: linkMatch[2],
+                        });
+                    }
+                    
+                    // Extract lesson/unit/book references
+                    const lessonPattern = /lesson\s+(\d+(?:\.\d+)?)/i;
+                    const unitPattern = /unit\s+(\d+)/i;
+                    const bookPattern = /book\s+(\d+)/i;
+                    
+                    // Try to construct a basic response from the text
+                    const extractedMessage = cleanedContent
+                        .replace(/\*\*/g, "") // Remove markdown bold
+                        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // Replace markdown links with text
+                        .substring(0, 500) // Limit length
+                        .trim();
+                    
+                    // Create a fallback JSON structure with guaranteed navigationLinks array
+                    const fallbackNavigationLinks: Array<{ label: string; url: string }> = [...links];
+                    
+                    // Try to add navigation links based on detected patterns if none were found
+                    if (fallbackNavigationLinks.length === 0) {
+                        const lessonMatch = cleanedContent.match(lessonPattern);
+                        const unitMatch = cleanedContent.match(unitPattern);
+                        const bookMatch = cleanedContent.match(bookPattern);
+                        
+                        if (lessonMatch) {
+                            const lessonId = lessonMatch[1];
+                            fallbackNavigationLinks.push({
+                                label: `Lesson ${lessonId} Vocabulary`,
+                                url: `/lessons/${lessonId}/vocabulary`,
+                            });
+                        } else if (unitMatch) {
+                            const unitId = unitMatch[1];
+                            fallbackNavigationLinks.push({
+                                label: `Unit ${unitId}`,
+                                url: `/units/${unitId}`,
+                            });
+                        } else if (bookMatch) {
+                            const bookId = bookMatch[1];
+                            fallbackNavigationLinks.push({
+                                label: `Book ${bookId}`,
+                                url: `/books/${bookId}`,
+                            });
+                        }
+                    }
+                    
+                    const fallbackJson: AILearningResponse = {
+                        message: extractedMessage || "I understand your request. Here's the information:",
+                        actions: [],
+                        navigationLinks: fallbackNavigationLinks,
+                    };
+                    
+                    aiResponse = fallbackJson;
+                    // Skip the JSON.parse step since we already have the object
+                    // Continue to process actions below
+                }
+            }
+
+            // Only parse JSON if we haven't already created a fallback response
+            if (aiResponse === null) {
+                // Fix incomplete JSON if needed
+                let fixedJson = jsonString;
+                if (jsonString.trim()) {
+                    const openBraces = (jsonString.match(/\{/g) || []).length;
+                    const closeBraces = (jsonString.match(/\}/g) || []).length;
+                    const missingBraces = openBraces - closeBraces;
+
+                    if (jsonString.includes('"actions"') && jsonString.includes('[')) {
+                        const openBrackets = (jsonString.match(/\[/g) || []).length;
+                        const closeBrackets = (jsonString.match(/\]/g) || []).length;
+                        const missingBrackets = openBrackets - closeBrackets;
+                        if (missingBrackets > 0) {
+                            fixedJson = jsonString + "]".repeat(missingBrackets);
+                        }
+                    }
+
+                    if (missingBraces > 0) {
+                        fixedJson = fixedJson + "}".repeat(missingBraces);
+                    }
+                }
+
+                aiResponse = JSON.parse(fixedJson) as AILearningResponse;
+            }
+        } catch (parseError) {
+            const errorMessage = parseError instanceof Error ? parseError.message : "Unknown parsing error";
+            const userRequest = prompt.length > 100 ? prompt.substring(0, 100) + "..." : prompt;
+            
+            // Last resort: try to extract any useful information from the response
+            const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+            const links: Array<{ label: string; url: string }> = [];
+            let linkMatch;
+            while ((linkMatch = linkPattern.exec(responseContent)) !== null) {
+                links.push({
+                    label: linkMatch[1],
+                    url: linkMatch[2],
+                });
+            }
+            
+            // Return a structured error with any extracted links
+            return {
+                success: false,
+                message: `Failed to parse AI response. Your request: "${userRequest}"`,
+                error: `Invalid JSON response from AI: ${errorMessage}. Response preview: ${responseContent.substring(0, 300)}`,
+                navigationLinks: links,
+            };
+        }
+
+        // Ensure we have a valid response
+        if (!aiResponse) {
+            return {
+                success: false,
+                message: "Failed to parse AI response",
+                error: "AI response could not be parsed or extracted",
+            };
+        }
+
+        // Process actions if any
+        const processedActions: LearningAction[] = [];
+        const navigationLinks: Array<{ label: string; url: string }> = [];
+
+        // Auto-detect vocabulary explanations and add navigation links
+        // Look for Arabic text patterns and common vocabulary-related phrases in the message
+        const messageText = aiResponse.message || "";
+        const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]+/g;
+        const arabicMatches = messageText.match(arabicPattern);
+        
+        // Also check if the message mentions vocabulary words from our list
+        if (arabicMatches && arabicMatches.length > 0) {
+            // Try to find the vocabulary word
+            for (const arabicText of arabicMatches) {
+                const wordInfo = await findVocabularyWord(arabicText);
+                if (wordInfo) {
+                    // Add wordId as query parameter to navigate to specific word
+                    const urlWithWord = `${wordInfo.navigationUrl}?wordId=${wordInfo.word.id}`;
+                    navigationLinks.push({
+                        label: `View "${wordInfo.word.arabic}" (${wordInfo.word.english}) in ${wordInfo.lesson.title}`,
+                        url: urlWithWord,
+                    });
+                    break; // Only add one link per response to avoid clutter
+                }
+            }
+        }
+        
+        // Also check for English vocabulary mentions
+        const vocabularyKeywords = vocabularyWordsList.map(w => w.english.toLowerCase());
+        const lowerMessage = messageText.toLowerCase();
+        for (const vocab of vocabularyKeywords) {
+            if (lowerMessage.includes(vocab.toLowerCase())) {
+                const wordInfo = await findVocabularyWord(undefined, vocab);
+                if (wordInfo && !navigationLinks.some(link => link.url.includes(`wordId=${wordInfo.word.id}`))) {
+                    // Add wordId as query parameter to navigate to specific word
+                    const urlWithWord = `${wordInfo.navigationUrl}?wordId=${wordInfo.word.id}`;
+                    navigationLinks.push({
+                        label: `View "${wordInfo.word.arabic}" (${wordInfo.word.english}) in ${wordInfo.lesson.title}`,
+                        url: urlWithWord,
+                    });
+                    break;
+                }
+            }
+        }
+
+        if (aiResponse.actions && Array.isArray(aiResponse.actions)) {
+            for (const action of aiResponse.actions) {
+                // Process search action - perform actual search
+                if (action.type === "search" && action.data?.query) {
+                    const searchResults = await searchLearningContent(action.data.query);
+                    processedActions.push({
+                        type: "search",
+                        data: {
+                            query: action.data.query,
+                            searchResults: searchResults.map(result => ({
+                                type: result.type,
+                                id: result.id,
+                                title: result.title,
+                                arabic: result.arabic,
+                                english: result.english,
+                                path: result.path,
+                            })),
+                        },
+                    });
+
+                    // Add navigation links from search results
+                    searchResults.forEach(result => {
+                        navigationLinks.push({
+                            label: result.title,
+                            url: result.path,
+                        });
+                    });
+                }
+                // Process navigate action
+                else if (action.type === "navigate" && action.data) {
+                    const navData = action.data as { bookId?: number; unitId?: number; lessonId?: number };
+                    if (navData.bookId) {
+                        navigationLinks.push({
+                            label: allBooks.find(b => b.id === navData.bookId)?.title || `Book ${navData.bookId}`,
+                            url: await getBookNavigationUrl(navData.bookId),
+                        });
+                    }
+                    if (navData.unitId) {
+                        navigationLinks.push({
+                            label: `Unit ${navData.unitId}`,
+                            url: await getUnitNavigationUrl(navData.unitId),
+                        });
+                    }
+                    if (navData.lessonId) {
+                        const lesson = await getLessonById(navData.lessonId);
+                        if (lesson) {
+                            navigationLinks.push({
+                                label: lesson.title,
+                                url: await getLessonNavigationUrl(lesson.id, lesson.type),
+                            });
+                        }
+                    }
+                    processedActions.push(action);
+                }
+                // Process test action - generate actual test
+                else if (action.type === "test" && action.data?.lessonId) {
+                    const test = await generateTestFromLesson(action.data.lessonId, 10);
+                    if (test) {
+                        const lesson = await getLessonById(test.lessonId);
+                        if (lesson) {
+                            navigationLinks.push({
+                                label: `${lesson.title} - Test`,
+                                url: await getLessonNavigationUrl(lesson.id, lesson.type, "test"),
+                            });
+                        }
+                        processedActions.push({
+                            type: "test",
+                            data: {
+                                lessonId: test.lessonId,
+                                testQuestions: test.questions,
+                            },
+                        });
+                    }
+                }
+                // Process practice action - extract navigation links from practice suggestions
+                else if (action.type === "practice" && action.data?.practiceSuggestions) {
+                    const practiceSuggestions = action.data.practiceSuggestions as Array<{
+                        type: string;
+                        description: string;
+                        url?: string;
+                        lessonId?: number;
+                    }>;
+                    
+                    // Extract navigation links from practice suggestions that have URLs
+                    for (const suggestion of practiceSuggestions) {
+                        if (suggestion.url) {
+                            navigationLinks.push({
+                                label: suggestion.description || `Practice: ${suggestion.type}`,
+                                url: suggestion.url,
+                            });
+                        } else if (suggestion.lessonId) {
+                            // If no URL but has lessonId, generate practice URL
+                            const lesson = await getLessonById(suggestion.lessonId);
+                            if (lesson && lesson.type === "vocabulary") {
+                                navigationLinks.push({
+                                    label: suggestion.description || `${lesson.title} - Practice`,
+                                    url: await getLessonNavigationUrl(lesson.id, lesson.type, "practice"),
+                                });
+                            }
+                        }
+                    }
+                    
+                    processedActions.push(action);
+                }
+                // Other actions (explain) - pass through
+                else {
+                    processedActions.push(action);
+                }
+            }
+        }
+
+        // Add navigation links from response if provided
+        if (aiResponse.navigationLinks && Array.isArray(aiResponse.navigationLinks)) {
+            navigationLinks.push(...aiResponse.navigationLinks);
+        }
+
+        // Handle "take me there" and similar navigation requests
+        const lowerPrompt = prompt.toLowerCase();
+        const navigationRequestKeywords = ["take me there", "go there", "navigate", "show me", "open", "let's go"];
+        const isNavigationRequest = navigationRequestKeywords.some(keyword => lowerPrompt.includes(keyword));
+        
+        // If user is asking to navigate but no links were provided, check conversation history
+        if (isNavigationRequest && navigationLinks.length === 0 && conversationHistory && conversationHistory.length > 0) {
+            // Look for lesson mentions in recent conversation history
+            for (let i = conversationHistory.length - 1; i >= 0 && i >= conversationHistory.length - 3; i--) {
+                const msg = conversationHistory[i];
+                if (msg.role === "assistant" && msg.content) {
+                    // Try to extract lesson number from message (e.g., "Lesson 1.3", "lesson 1.3", "1.3")
+                    const lessonMatch = msg.content.match(/(?:lesson|unit)\s*(\d+)\.(\d+)/i) || 
+                                       msg.content.match(/(\d+)\.(\d+)/);
+                    
+                    if (lessonMatch) {
+                        const unitNum = parseInt(lessonMatch[1]);
+                        const lessonNum = parseInt(lessonMatch[2]);
+                        
+                        // Find the lesson by matching unit and lesson numbers
+                        for (const book of allBooks) {
+                            const units = await getUnitsByBook(book.id);
+                            const unit = units.find(u => u.order === unitNum);
+                            if (unit) {
+                                const lessons = await getLessonsByUnit(unit.id);
+                                const lesson = lessons.find(l => l.order === lessonNum && l.type === "vocabulary");
+                                if (lesson) {
+                                    const url = await getLessonNavigationUrl(lesson.id, lesson.type);
+                                    navigationLinks.push({
+                                        label: lesson.title,
+                                        url,
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Also check if previous message had navigation links that we can reuse
+                    if (msg.navigationLinks && msg.navigationLinks.length > 0) {
+                        navigationLinks.push(...msg.navigationLinks);
+                        break;
+                    }
+                    
+                    // Check if previous message had practice actions with URLs
+                    if (msg.result?.actions) {
+                        for (const action of msg.result.actions) {
+                            if (action.type === "practice" && action.data?.practiceSuggestions) {
+                                const suggestions = action.data.practiceSuggestions as Array<{
+                                    type: string;
+                                    description: string;
+                                    url?: string;
+                                }>;
+                                suggestions.forEach(suggestion => {
+                                    if (suggestion.url && !navigationLinks.some(link => link.url === suggestion.url)) {
+                                        navigationLinks.push({
+                                            label: suggestion.description || `Practice: ${suggestion.type}`,
+                                            url: suggestion.url,
+                                        });
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    
+                    if (navigationLinks.length > 0) break;
+                }
+            }
+        }
+
+        // Auto-suggest lessons for resuming learning if user asks about continuing/next steps
+        const resumeKeywords = ["continue", "next", "resume", "where did i", "what should i study", "what's next", "keep learning", "go back to"];
+        const shouldSuggestResume = resumeKeywords.some(keyword => lowerPrompt.includes(keyword));
+
+        if (shouldSuggestResume && navigationLinks.length === 0) {
+            // Find lessons with partial progress or recent activity
+            const lessonsToSuggest: Array<{ lessonId: number; title: string; progress: number; lastActivity: Date | null }> = [];
+            
+            for (const book of allBooks) {
+                const units = await getUnitsByBook(book.id);
+                for (const unit of units) {
+                    const lessons = await getLessonsByUnit(unit.id);
+                    for (const lesson of lessons) {
+                        if (lesson.type === "vocabulary") {
+                            const lessonProgress = await getLessonProgress(lesson.id);
+                            // Suggest lessons that are:
+                            // 1. Started but not completed (0% < progress < 100%)
+                            // 2. Not started but have recent activity in the unit
+                            // 3. Have recent activity
+                            if (lessonProgress.totalWords > 0) {
+                                const progressPercent = lessonProgress.completionPercentage;
+                                if ((progressPercent > 0 && progressPercent < 100) || 
+                                    (progressPercent === 0 && lessonProgress.lastActivityDate)) {
+                                    lessonsToSuggest.push({
+                                        lessonId: lesson.id,
+                                        title: lesson.title,
+                                        progress: progressPercent,
+                                        lastActivity: lessonProgress.lastActivityDate,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Sort by: recent activity first, then by progress (partial progress preferred)
+            lessonsToSuggest.sort((a, b) => {
+                if (a.lastActivity && b.lastActivity) {
+                    return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
+                }
+                if (a.lastActivity) return -1;
+                if (b.lastActivity) return 1;
+                // Prefer partial progress over not started
+                if (a.progress > 0 && b.progress === 0) return -1;
+                if (b.progress > 0 && a.progress === 0) return 1;
+                return b.progress - a.progress;
+            });
+
+            // Add top 3 suggestions
+            for (const lesson of lessonsToSuggest.slice(0, 3)) {
+                const lessonObj = await getLessonById(lesson.lessonId);
+                if (lessonObj) {
+                    const url = await getLessonNavigationUrl(lessonObj.id, lessonObj.type);
+                    navigationLinks.push({
+                        label: `Continue: ${lesson.title} (${lesson.progress}% complete)`,
+                        url,
+                    });
+                }
+            }
+        }
+
+        return {
+            success: true,
+            message: aiResponse.message || "Request processed successfully",
+            actions: processedActions.length > 0 ? processedActions : undefined,
+            navigationLinks: navigationLinks.length > 0 ? navigationLinks : undefined,
+        };
+    } catch (error) {
+        console.error("Failed to process AI learning request:", error);
+        return {
+            success: false,
+            message: "Failed to process request",
+            error: error instanceof Error ? error.message : "Unknown error occurred",
+        };
+    }
 }
 
 export async function processAITodoRequest(
@@ -1627,6 +2672,40 @@ export async function getUnitProgress(unitId: number): Promise<ProgressData> {
             completionPercentage: 0,
             lastActivityDate: null,
         };
+    }
+}
+
+// Reset progress for a lesson
+export async function resetLessonProgress(lessonId: number) {
+    const session = await getSession();
+    if (!session) throw new Error("Unauthorized");
+
+    try {
+        // Get all words for this lesson
+        const words = await getVocabularyWordsByLesson(lessonId);
+        const wordIds = words.map(w => w.id);
+
+        if (wordIds.length === 0) {
+            return { success: true, message: "No words found in this lesson" };
+        }
+
+        // Delete all progress entries for these words for the current user
+        await db
+            .delete(userProgress)
+            .where(
+                and(
+                    eq(userProgress.userId, session.user.id),
+                    inArray(userProgress.wordId, wordIds)
+                )
+            );
+
+        // Revalidate the lesson page
+        revalidatePath(`/lessons/${lessonId}/vocabulary`);
+
+        return { success: true, message: "Progress reset successfully" };
+    } catch (error) {
+        console.error("Failed to reset lesson progress:", error);
+        throw error;
     }
 }
 

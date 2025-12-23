@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { processAITodoRequest, getAvailableModelsForUsersAction, getDefaultModelAction, isAIAvailableForUser, type ProcessAITodoResult } from "@/app/actions";
+import { processAILearningRequest, getAvailableModelsForUsersAction, getDefaultModelAction, isAIAvailableForUser, type ProcessAILearningResult } from "@/app/actions";
 import { Send, Loader2, Bot, User, AlertCircle, CheckCircle2, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -9,7 +9,8 @@ interface ChatMessage {
     role: "user" | "assistant";
     content: string;
     timestamp: Date;
-    result?: ProcessAITodoResult;
+    result?: ProcessAILearningResult;
+    navigationLinks?: Array<{ label: string; url: string }>;
 }
 
 export function AIChatWindow() {
@@ -81,10 +82,14 @@ export function AIChatWindow() {
             timestamp: new Date(),
         };
 
-        // Build conversation history from previous messages before adding the new one
+        // Build full conversation history with context (navigation links, results, etc.)
         const conversationHistory = messages.map(msg => ({
             role: msg.role,
             content: msg.content,
+            navigationLinks: msg.navigationLinks,
+            result: msg.result ? {
+                actions: msg.result.actions,
+            } : undefined,
         }));
 
         setMessages(prev => [...prev, userMessage]);
@@ -92,20 +97,21 @@ export function AIChatWindow() {
         setIsLoading(true);
         setError(null);
 
-        let result: ProcessAITodoResult | null = null;
+        let result: ProcessAILearningResult | null = null;
         try {
-            result = await processAITodoRequest(userPrompt, selectedModel, conversationHistory);
+            result = await processAILearningRequest(userPrompt, selectedModel, conversationHistory);
             
             const assistantMessage: ChatMessage = {
                 role: "assistant",
-                content: result.message || "Task completed",
+                content: result.message || "Request processed",
                 timestamp: new Date(),
                 result,
+                navigationLinks: result.navigationLinks,
             };
 
             setMessages(prev => [...prev, assistantMessage]);
             
-            // Refresh the page to show updated todos
+            // Refresh the page if needed
             router.refresh();
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : "Failed to process request";
@@ -121,7 +127,6 @@ export function AIChatWindow() {
                 result: result || {
                     success: false,
                     message: errorMessage,
-                    executedActions: [],
                     error: errorMessage,
                 },
             };
@@ -132,26 +137,60 @@ export function AIChatWindow() {
         }
     };
 
-    const formatActionSummary = (result: ProcessAITodoResult) => {
-        if (result.executedActions.length === 0) {
+    const renderActionContent = (result: ProcessAILearningResult) => {
+        if (!result.actions || result.actions.length === 0) {
             return null;
         }
 
-        const actionCounts: Record<string, number> = {};
-        result.executedActions.forEach(action => {
-            if (action.success) {
-                actionCounts[action.type] = (actionCounts[action.type] || 0) + 1;
-            }
-        });
-
-        const summaries: string[] = [];
-        if (actionCounts.add) summaries.push(`${actionCounts.add} added`);
-        if (actionCounts.edit) summaries.push(`${actionCounts.edit} edited`);
-        if (actionCounts.complete) summaries.push(`${actionCounts.complete} completed`);
-        if (actionCounts.uncomplete) summaries.push(`${actionCounts.uncomplete} uncompleted`);
-        if (actionCounts.delete) summaries.push(`${actionCounts.delete} deleted`);
-
-        return summaries.length > 0 ? summaries.join(", ") : null;
+        return (
+            <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                {result.actions.map((action, idx) => {
+                    if (action.type === "search" && action.data?.searchResults) {
+                        return (
+                            <div key={idx} className="text-xs">
+                                <p className="font-semibold text-slate-700 mb-1">Search Results:</p>
+                                <ul className="list-disc list-inside space-y-1 text-slate-600">
+                                    {action.data.searchResults.slice(0, 5).map((item, i) => (
+                                        <li key={i}>{item.title}</li>
+                                    ))}
+                                    {action.data.searchResults.length > 5 && (
+                                        <li className="text-slate-400">...and {action.data.searchResults.length - 5} more</li>
+                                    )}
+                                </ul>
+                            </div>
+                        );
+                    }
+                    if (action.type === "test" && action.data?.testQuestions) {
+                        return (
+                            <div key={idx} className="text-xs">
+                                <p className="font-semibold text-slate-700 mb-1">Test Questions ({action.data.testQuestions.length}):</p>
+                                <ul className="list-disc list-inside space-y-1 text-slate-600">
+                                    {action.data.testQuestions.slice(0, 3).map((q, i) => (
+                                        <li key={i}>{q.question}</li>
+                                    ))}
+                                    {action.data.testQuestions.length > 3 && (
+                                        <li className="text-slate-400">...and {action.data.testQuestions.length - 3} more</li>
+                                    )}
+                                </ul>
+                            </div>
+                        );
+                    }
+                    if (action.type === "practice" && action.data?.practiceSuggestions) {
+                        return (
+                            <div key={idx} className="text-xs">
+                                <p className="font-semibold text-slate-700 mb-1">Practice Suggestions:</p>
+                                <ul className="list-disc list-inside space-y-1 text-slate-600">
+                                    {action.data.practiceSuggestions.map((suggestion, i) => (
+                                        <li key={i} className="break-words">{suggestion.description}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        );
+                    }
+                    return null;
+                })}
+            </div>
+        );
     };
 
     if (isLoadingModels) {
@@ -201,7 +240,7 @@ export function AIChatWindow() {
                         ))}
                     </select>
                 </div>
-                <p className="text-white/90 text-xs">Describe what you want to do with your tasks</p>
+                <p className="text-white/90 text-xs">Ask questions, search content, or get learning help</p>
             </div>
 
             {/* Messages */}
@@ -209,11 +248,13 @@ export function AIChatWindow() {
                 {messages.length === 0 ? (
                     <div className="text-center py-12">
                         <Bot className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                        <p className="text-slate-500 text-sm mb-2">Start a conversation with AI</p>
+                        <p className="text-slate-500 text-sm mb-2">Start a conversation with your learning assistant</p>
                         <div className="text-xs text-slate-400 space-y-1">
-                            <p>Simple: "Add buy groceries" or "Complete the first task"</p>
-                            <p>Groups: "Create a Work group and add 3 tasks"</p>
-                            <p>Complex: "Create groups for Urgent, Important, Later and organize my tasks"</p>
+                            <p>Explain: "What does 'كتاب' mean?"</p>
+                            <p>Search: "Find vocabulary about food"</p>
+                            <p>Navigate: "Take me to Unit 3"</p>
+                            <p>Practice: "What should I study next?"</p>
+                            <p>Test: "Generate a quiz for Lesson 5"</p>
                         </div>
                     </div>
                 ) : (
@@ -234,42 +275,37 @@ export function AIChatWindow() {
                                         : "bg-white border border-slate-200 text-slate-900"
                                 }`}
                             >
-                                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                                <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</div>
                                 
-                                {/* Only show result section if there are executed actions or an actual error */}
-                                {message.result && (
-                                    (message.result.executedActions.length > 0 || message.result.error) && (
-                                        <div className="mt-3 pt-3 border-t border-slate-200">
-                                            {message.result.success && message.result.executedActions.length > 0 ? (
-                                                <div className="flex items-start gap-2">
-                                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                                                    <div className="flex-1">
-                                                        {formatActionSummary(message.result) && (
-                                                            <p className="text-xs font-semibold text-emerald-700 mb-1">
-                                                                {formatActionSummary(message.result)}
-                                                            </p>
-                                                        )}
-                                                        {message.result.executedActions.some(a => !a.success) && (
-                                                            <div className="text-xs text-amber-700">
-                                                                {message.result.executedActions
-                                                                    .filter(a => !a.success)
-                                                                    .map((a, i) => (
-                                                                        <p key={i}>
-                                                                            {a.type} action failed: {a.error}
-                                                                        </p>
-                                                                    ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ) : message.result.error ? (
-                                                <div className="flex items-start gap-2">
-                                                    <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-                                                    <p className="text-xs text-red-700">{message.result.error}</p>
-                                                </div>
-                                            ) : null}
+                                {/* Show action content */}
+                                {message.result && renderActionContent(message.result)}
+                                
+                                {/* Show navigation links */}
+                                {message.navigationLinks && message.navigationLinks.length > 0 && (
+                                    <div className={`mt-3 pt-3 ${message.result?.actions && message.result.actions.length > 0 ? '' : 'border-t border-slate-200'}`}>
+                                        <p className="text-xs font-semibold text-slate-700 mb-2">Quick Links:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {message.navigationLinks.map((link, idx) => (
+                                                <a
+                                                    key={idx}
+                                                    href={link.url}
+                                                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm hover:shadow"
+                                                >
+                                                    {link.label}
+                                                </a>
+                                            ))}
                                         </div>
-                                    )
+                                    </div>
+                                )}
+                                
+                                {/* Show error if any */}
+                                {message.result?.error && (
+                                    <div className="mt-3 pt-3 border-t border-slate-200">
+                                        <div className="flex items-start gap-2">
+                                            <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                                            <p className="text-xs text-red-700">{message.result.error}</p>
+                                        </div>
+                                    </div>
                                 )}
                                 
                                 <p className="text-xs opacity-60 mt-2">
@@ -315,7 +351,7 @@ export function AIChatWindow() {
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Try: 'Add buy groceries' or 'Create a Work group and add 3 tasks'..."
+                        placeholder="Try: 'What does كتاب mean?' or 'Search for food vocabulary'..."
                         disabled={isLoading || !selectedModel}
                         className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white text-slate-900 placeholder:text-slate-400 disabled:bg-slate-50 disabled:cursor-not-allowed"
                     />

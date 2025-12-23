@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { processAITodoRequest, getAvailableModelsForUsersAction, getDefaultModelAction, isAIAvailableForUser, type ProcessAITodoResult } from "@/app/actions";
+import { processAILearningRequest, getAvailableModelsForUsersAction, getDefaultModelAction, isAIAvailableForUser, type ProcessAILearningResult } from "@/app/actions";
 import { Send, Loader2, Bot, User, AlertCircle, CheckCircle2, Sparkles, X, Minimize2, Maximize2, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
@@ -10,7 +10,8 @@ interface ChatMessage {
     role: "user" | "assistant";
     content: string;
     timestamp: Date;
-    result?: ProcessAITodoResult;
+    result?: ProcessAILearningResult;
+    navigationLinks?: Array<{ label: string; url: string }>;
 }
 
 export function FloatingAIChat() {
@@ -30,6 +31,86 @@ export function FloatingAIChat() {
     const tooltipRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
     const { data: session } = useSession();
+    const isInitialMount = useRef(true);
+
+    // Restore persisted chat state from localStorage on mount
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        try {
+            const persistedIsOpen = localStorage.getItem("ai-chat-is-open");
+            const persistedIsMinimized = localStorage.getItem("ai-chat-is-minimized");
+            const persistedMessages = localStorage.getItem("ai-chat-messages");
+            const persistedSelectedModel = localStorage.getItem("ai-chat-selected-model");
+
+            if (persistedIsOpen === "true") {
+                setIsOpen(true);
+            }
+            if (persistedIsMinimized === "true") {
+                setIsMinimized(true);
+            }
+            if (persistedMessages) {
+                const parsedMessages = JSON.parse(persistedMessages);
+                // Convert timestamp strings back to Date objects
+                const messagesWithDates = parsedMessages.map((msg: any) => ({
+                    ...msg,
+                    timestamp: new Date(msg.timestamp),
+                }));
+                setMessages(messagesWithDates);
+            }
+            if (persistedSelectedModel) {
+                setSelectedModel(persistedSelectedModel);
+            }
+        } catch (err) {
+            console.error("Failed to restore chat state:", err);
+        }
+    }, []);
+
+    // Persist isOpen state to localStorage
+    useEffect(() => {
+        if (typeof window === "undefined" || isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+        if (isOpen) {
+            localStorage.setItem("ai-chat-is-open", "true");
+        } else {
+            localStorage.removeItem("ai-chat-is-open");
+        }
+    }, [isOpen]);
+
+    // Persist isMinimized state to localStorage
+    useEffect(() => {
+        if (typeof window === "undefined" || isInitialMount.current) return;
+        if (isMinimized) {
+            localStorage.setItem("ai-chat-is-minimized", "true");
+        } else {
+            localStorage.removeItem("ai-chat-is-minimized");
+        }
+    }, [isMinimized]);
+
+    // Persist messages to localStorage
+    useEffect(() => {
+        if (typeof window === "undefined" || isInitialMount.current) return;
+        if (messages.length > 0) {
+            // Convert Date objects to ISO strings for storage
+            const messagesForStorage = messages.map(msg => ({
+                ...msg,
+                timestamp: msg.timestamp.toISOString(),
+            }));
+            localStorage.setItem("ai-chat-messages", JSON.stringify(messagesForStorage));
+        } else {
+            localStorage.removeItem("ai-chat-messages");
+        }
+    }, [messages]);
+
+    // Persist selectedModel to localStorage
+    useEffect(() => {
+        if (typeof window === "undefined" || isInitialMount.current) return;
+        if (selectedModel) {
+            localStorage.setItem("ai-chat-selected-model", selectedModel);
+        }
+    }, [selectedModel]);
 
     // Check if AI is available for user and load models
     useEffect(() => {
@@ -51,11 +132,17 @@ export function FloatingAIChat() {
                 setAvailableModels(models);
                 
                 if (models.length > 0) {
-                    const defaultModel = await getDefaultModelAction();
-                    if (defaultModel && models.includes(defaultModel)) {
-                        setSelectedModel(defaultModel);
+                    // Only set default model if we don't have a persisted one
+                    const persistedModel = localStorage.getItem("ai-chat-selected-model");
+                    if (persistedModel && models.includes(persistedModel)) {
+                        setSelectedModel(persistedModel);
                     } else {
-                        setSelectedModel(models[0]);
+                        const defaultModel = await getDefaultModelAction();
+                        if (defaultModel && models.includes(defaultModel)) {
+                            setSelectedModel(defaultModel);
+                        } else {
+                            setSelectedModel(models[0]);
+                        }
                     }
                 } else {
                     setIsAvailable(false);
@@ -112,9 +199,14 @@ export function FloatingAIChat() {
             timestamp: new Date(),
         };
 
+        // Build full conversation history with context (navigation links, results, etc.)
         const conversationHistory = messages.map(msg => ({
             role: msg.role,
             content: msg.content,
+            navigationLinks: msg.navigationLinks,
+            result: msg.result ? {
+                actions: msg.result.actions,
+            } : undefined,
         }));
 
         setMessages(prev => [...prev, userMessage]);
@@ -122,15 +214,16 @@ export function FloatingAIChat() {
         setIsLoading(true);
         setError(null);
 
-        let result: ProcessAITodoResult | null = null;
+        let result: ProcessAILearningResult | null = null;
         try {
-            result = await processAITodoRequest(userPrompt, selectedModel, conversationHistory);
+            result = await processAILearningRequest(userPrompt, selectedModel, conversationHistory);
             
             const assistantMessage: ChatMessage = {
                 role: "assistant",
-                content: result.message || "Task completed",
+                content: result.message || "Request processed",
                 timestamp: new Date(),
                 result,
+                navigationLinks: result.navigationLinks,
             };
 
             setMessages(prev => [...prev, assistantMessage]);
@@ -149,7 +242,6 @@ export function FloatingAIChat() {
                 result: result || {
                     success: false,
                     message: errorMessage,
-                    executedActions: [],
                     error: errorMessage,
                 },
             };
@@ -160,26 +252,60 @@ export function FloatingAIChat() {
         }
     };
 
-    const formatActionSummary = (result: ProcessAITodoResult) => {
-        if (result.executedActions.length === 0) {
+    const renderActionContent = (result: ProcessAILearningResult) => {
+        if (!result.actions || result.actions.length === 0) {
             return null;
         }
 
-        const actionCounts: Record<string, number> = {};
-        result.executedActions.forEach(action => {
-            if (action.success) {
-                actionCounts[action.type] = (actionCounts[action.type] || 0) + 1;
-            }
-        });
-
-        const summaries: string[] = [];
-        if (actionCounts.add) summaries.push(`${actionCounts.add} added`);
-        if (actionCounts.edit) summaries.push(`${actionCounts.edit} edited`);
-        if (actionCounts.complete) summaries.push(`${actionCounts.complete} completed`);
-        if (actionCounts.uncomplete) summaries.push(`${actionCounts.uncomplete} uncompleted`);
-        if (actionCounts.delete) summaries.push(`${actionCounts.delete} deleted`);
-
-        return summaries.length > 0 ? summaries.join(", ") : null;
+        return (
+            <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5">
+                {result.actions.map((action, idx) => {
+                    if (action.type === "search" && action.data?.searchResults) {
+                        return (
+                            <div key={idx} className="text-[10px]">
+                                <p className="font-semibold text-slate-700 mb-0.5">Search Results:</p>
+                                <ul className="list-disc list-inside space-y-0.5 text-slate-600">
+                                    {action.data.searchResults.slice(0, 3).map((item, i) => (
+                                        <li key={i} className="truncate">{item.title}</li>
+                                    ))}
+                                    {action.data.searchResults.length > 3 && (
+                                        <li className="text-slate-400">...{action.data.searchResults.length - 3} more</li>
+                                    )}
+                                </ul>
+                            </div>
+                        );
+                    }
+                    if (action.type === "test" && action.data?.testQuestions) {
+                        return (
+                            <div key={idx} className="text-[10px]">
+                                <p className="font-semibold text-slate-700 mb-0.5">Test ({action.data.testQuestions.length} questions):</p>
+                                <ul className="list-disc list-inside space-y-0.5 text-slate-600">
+                                    {action.data.testQuestions.slice(0, 2).map((q, i) => (
+                                        <li key={i} className="truncate">{q.question}</li>
+                                    ))}
+                                    {action.data.testQuestions.length > 2 && (
+                                        <li className="text-slate-400">...{action.data.testQuestions.length - 2} more</li>
+                                    )}
+                                </ul>
+                            </div>
+                        );
+                    }
+                    if (action.type === "practice" && action.data?.practiceSuggestions) {
+                        return (
+                            <div key={idx} className="text-[10px]">
+                                <p className="font-semibold text-slate-700 mb-0.5">Practice:</p>
+                                <ul className="list-disc list-inside space-y-0.5 text-slate-600">
+                                    {action.data.practiceSuggestions.map((suggestion, i) => (
+                                        <li key={i} className="break-words">{suggestion.description}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        );
+                    }
+                    return null;
+                })}
+            </div>
+        );
     };
 
     // Don't show anything if user is not logged in, still loading, not available, or no models
@@ -217,9 +343,9 @@ export function FloatingAIChat() {
                                         <Sparkles className="w-5 h-5 text-white" />
                                     </div>
                                     <div className="flex-1">
-                                        <h4 className="font-bold text-sm mb-1">AI Assistant Available!</h4>
+                                        <h4 className="font-bold text-sm mb-1">Learning Assistant Available!</h4>
                                         <p className="text-xs text-white/90 mb-3">
-                                            Click here to manage your tasks with AI. Ask me to add, complete, edit, or delete tasks!
+                                            Click here to get help with learning Arabic. Ask questions, search content, practice, or take tests!
                                         </p>
                                         <button
                                             onClick={() => {
@@ -287,6 +413,10 @@ export function FloatingAIChat() {
                                 onClick={() => {
                                     setIsOpen(false);
                                     setIsMinimized(false);
+                                    // Clear persisted state when user explicitly closes
+                                    localStorage.removeItem("ai-chat-is-open");
+                                    localStorage.removeItem("ai-chat-is-minimized");
+                                    localStorage.removeItem("ai-chat-messages");
                                 }}
                                 className="p-1.5 text-white hover:bg-white/20 rounded transition-colors"
                                 aria-label="Close"
@@ -344,11 +474,11 @@ export function FloatingAIChat() {
                                 {messages.length === 0 ? (
                                     <div className="text-center py-12">
                                         <Bot className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                                        <p className="text-slate-500 text-xs mb-2">Start a conversation with AI</p>
+                                        <p className="text-slate-500 text-xs mb-2">Start learning with AI</p>
                                         <div className="text-xs text-slate-400 space-y-1">
-                                            <p>Simple: "Add buy groceries"</p>
-                                            <p>Groups: "Create Work group and add 3 tasks"</p>
-                                            <p>Complex: "Create groups and organize my tasks"</p>
+                                            <p>"What does 'كتاب' mean?"</p>
+                                            <p>"Search for food vocabulary"</p>
+                                            <p>"What should I study next?"</p>
                                         </div>
                                     </div>
                                 ) : (
@@ -369,41 +499,37 @@ export function FloatingAIChat() {
                                                         : "bg-white border border-slate-200 text-slate-900"
                                                 }`}
                                             >
-                                                <p className="text-xs whitespace-pre-wrap break-words">{message.content}</p>
+                                                <div className="text-xs whitespace-pre-wrap break-words leading-relaxed">{message.content}</div>
                                                 
-                                                {message.result && (
-                                                    (message.result.executedActions.length > 0 || message.result.error) && (
-                                                        <div className="mt-2 pt-2 border-t border-slate-200">
-                                                            {message.result.success && message.result.executedActions.length > 0 ? (
-                                                                <div className="flex items-start gap-1.5">
-                                                                    <CheckCircle2 className="w-3 h-3 text-emerald-600 flex-shrink-0 mt-0.5" />
-                                                                    <div className="flex-1">
-                                                                        {formatActionSummary(message.result) && (
-                                                                            <p className="text-[10px] font-semibold text-emerald-700 mb-0.5">
-                                                                                {formatActionSummary(message.result)}
-                                                                            </p>
-                                                                        )}
-                                                                        {message.result.executedActions.some(a => !a.success) && (
-                                                                            <div className="text-[10px] text-amber-700">
-                                                                                {message.result.executedActions
-                                                                                    .filter(a => !a.success)
-                                                                                    .map((a, i) => (
-                                                                                        <p key={i}>
-                                                                                            {a.type} failed: {a.error}
-                                                                                        </p>
-                                                                                    ))}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            ) : message.result.error ? (
-                                                                <div className="flex items-start gap-1.5">
-                                                                    <AlertCircle className="w-3 h-3 text-red-600 flex-shrink-0 mt-0.5" />
-                                                                    <p className="text-[10px] text-red-700">{message.result.error}</p>
-                                                                </div>
-                                                            ) : null}
+                                                {/* Show action content */}
+                                                {message.result && renderActionContent(message.result)}
+                                                
+                                                {/* Show navigation links */}
+                                                {message.navigationLinks && message.navigationLinks.length > 0 && (
+                                                    <div className={`mt-2 pt-2 ${message.result?.actions && message.result.actions.length > 0 ? '' : 'border-t border-slate-200'}`}>
+                                                        <p className="text-[10px] font-semibold text-slate-700 mb-1">Quick Links:</p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {message.navigationLinks.map((link, idx) => (
+                                                                <a
+                                                                    key={idx}
+                                                                    href={link.url}
+                                                                    className="text-[10px] px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors font-medium shadow-sm hover:shadow whitespace-normal break-words"
+                                                                >
+                                                                    {link.label}
+                                                                </a>
+                                                            ))}
                                                         </div>
-                                                    )
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Show error if any */}
+                                                {message.result?.error && (
+                                                    <div className="mt-2 pt-2 border-t border-slate-200">
+                                                        <div className="flex items-start gap-1.5">
+                                                            <AlertCircle className="w-3 h-3 text-red-600 flex-shrink-0 mt-0.5" />
+                                                            <p className="text-[10px] text-red-700">{message.result.error}</p>
+                                                        </div>
+                                                    </div>
                                                 )}
                                                 
                                                 <p className="text-[10px] opacity-60 mt-1">
@@ -449,7 +575,7 @@ export function FloatingAIChat() {
                                         type="text"
                                         value={input}
                                         onChange={(e) => setInput(e.target.value)}
-                                        placeholder="Try: 'Add task' or 'Create group and add tasks'..."
+                                        placeholder="Try: 'What does كتاب mean?' or 'Search vocabulary'..."
                                         disabled={isLoading || !selectedModel}
                                         className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white text-slate-900 placeholder:text-slate-400 disabled:bg-slate-50 disabled:cursor-not-allowed"
                                     />

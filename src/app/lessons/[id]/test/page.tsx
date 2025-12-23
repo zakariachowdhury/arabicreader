@@ -8,7 +8,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getUnitById, getBookById } from "../../../actions";
 
-export default async function VocabularyLessonPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TestLessonPage({ params }: { params: Promise<{ id: string }> }) {
     const session = await auth.api.getSession({
         headers: await headers(),
     });
@@ -59,7 +59,7 @@ export default async function VocabularyLessonPage({ params }: { params: Promise
                     <div className="flex items-start justify-between gap-4 mb-2">
                         <div className="flex-1">
                             <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl mb-2">
-                                {lesson.title}
+                                {lesson.title} - Test
                             </h1>
                             {book && unit && (
                                 <p className="text-slate-500">
@@ -71,7 +71,7 @@ export default async function VocabularyLessonPage({ params }: { params: Promise
                     </div>
                 </header>
 
-                <VocabularyFlashcards words={words} initialProgress={progress} lessonId={lessonId} />
+                <VocabularyFlashcards words={words} initialProgress={progress} lessonId={lessonId} initialMode="test" />
             </div>
         </main>
     );

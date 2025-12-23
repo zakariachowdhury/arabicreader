@@ -11,6 +11,7 @@ interface VocabularyFlashcardsProps {
     words: VocabularyWord[];
     initialProgress: Record<number, UserProgress>;
     lessonId: number;
+    initialMode?: Mode;
 }
 
 // Helper function to generate multiple choice options
@@ -33,8 +34,8 @@ function generateMultipleChoiceOptions(
     return options.sort(() => Math.random() - 0.5);
 }
 
-export function VocabularyFlashcards({ words, initialProgress, lessonId }: VocabularyFlashcardsProps) {
-    const [mode, setMode] = useState<Mode>("learn");
+export function VocabularyFlashcards({ words, initialProgress, lessonId, initialMode = "learn" }: VocabularyFlashcardsProps) {
+    const [mode, setMode] = useState<Mode>(initialMode);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
     const [testAnswers, setTestAnswers] = useState<Record<number, string>>({});
@@ -44,6 +45,26 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId }: Vocab
     const [progress, setProgress] = useState(initialProgress);
     const [isPending, startTransition] = useTransition();
     const [speaking, setSpeaking] = useState<{ arabic: boolean; english: boolean }>({ arabic: false, english: false });
+
+    // Check for wordId in URL query parameters to jump to specific word
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const urlParams = new URLSearchParams(window.location.search);
+            const wordIdParam = urlParams.get("wordId");
+            if (wordIdParam) {
+                const wordId = parseInt(wordIdParam);
+                if (!isNaN(wordId)) {
+                    const wordIndex = words.findIndex(w => w.id === wordId);
+                    if (wordIndex !== -1) {
+                        setCurrentIndex(wordIndex);
+                        // Clean up URL by removing the query parameter
+                        const newUrl = window.location.pathname;
+                        window.history.replaceState({}, "", newUrl);
+                    }
+                }
+            }
+        }
+    }, [words]);
 
     const currentWord = words[currentIndex];
     const currentProgress = currentWord ? progress[currentWord.id] : null;
