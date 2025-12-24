@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Unit } from "@/db/schema";
 import { createUnit, updateUnit, deleteUnit, updateUnitOrder } from "@/app/admin/actions";
-import { Edit2, Trash2, Save, X, Plus, BookOpen, GripVertical } from "lucide-react";
+import { Edit2, Trash2, Save, X, Plus, BookOpen, GripVertical, ToggleLeft, ToggleRight } from "lucide-react";
 import { DeleteConfirmation } from "./DeleteConfirmation";
 import Link from "next/link";
 import {
@@ -24,7 +24,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-function SortableUnitRow({ unit, editingId, editData, isPending, deletingId, onEdit, onCancel, onSave, onDeleteClick, onDeleteConfirm, onCancelDelete, setEditData }: {
+function SortableUnitRow({ unit, editingId, editData, isPending, deletingId, onEdit, onCancel, onSave, onDeleteClick, onDeleteConfirm, onCancelDelete, setEditData, onToggleEnabled }: {
     unit: Unit;
     editingId: number | null;
     editData: { title: string; order: number } | null;
@@ -37,6 +37,7 @@ function SortableUnitRow({ unit, editingId, editData, isPending, deletingId, onE
     onDeleteConfirm: (unitId: number) => void;
     onCancelDelete: () => void;
     setEditData: (data: { title: string; order: number } | null) => void;
+    onToggleEnabled: (unitId: number, currentEnabled: boolean) => void;
 }) {
     const {
         attributes,
@@ -88,6 +89,34 @@ function SortableUnitRow({ unit, editingId, editData, isPending, deletingId, onE
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                 {new Date(unit.createdAt).toLocaleDateString()}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap">
+                {editingId === unit.id ? (
+                    <div className="text-slate-400">-</div>
+                ) : (
+                    <button
+                        onClick={() => onToggleEnabled(unit.id, unit.enabled)}
+                        disabled={isPending}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                            unit.enabled 
+                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" 
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                        title={unit.enabled ? "Disable" : "Enable"}
+                    >
+                        {unit.enabled ? (
+                            <>
+                                <ToggleRight className="w-4 h-4" />
+                                <span className="text-xs font-medium">Enabled</span>
+                            </>
+                        ) : (
+                            <>
+                                <ToggleLeft className="w-4 h-4" />
+                                <span className="text-xs font-medium">Disabled</span>
+                            </>
+                        )}
+                    </button>
+                )}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-right">
                 {editingId === unit.id ? (
@@ -248,6 +277,23 @@ export function UnitManagement({ initialUnits, bookId, bookTitle }: { initialUni
         });
     };
 
+    const handleToggleEnabled = async (unitId: number, currentEnabled: boolean) => {
+        const newEnabled = !currentEnabled;
+        startTransition(async () => {
+            try {
+                await updateUnit(unitId, { enabled: newEnabled });
+                setUnits(units.map(u => 
+                    u.id === unitId 
+                        ? { ...u, enabled: newEnabled, updatedAt: new Date() }
+                        : u
+                ));
+            } catch (error) {
+                console.error("Failed to toggle unit enabled state:", error);
+                alert("Failed to update unit. Please try again.");
+            }
+        });
+    };
+
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
 
@@ -344,6 +390,7 @@ export function UnitManagement({ initialUnits, bookId, bookTitle }: { initialUni
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider w-12"></th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Title</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Created</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
                                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -364,6 +411,7 @@ export function UnitManagement({ initialUnits, bookId, bookTitle }: { initialUni
                                             onDeleteConfirm={handleDelete}
                                             onCancelDelete={handleCancelDelete}
                                             setEditData={setEditData}
+                                            onToggleEnabled={handleToggleEnabled}
                                         />
                                     ))}
                                 </SortableContext>

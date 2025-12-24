@@ -1,5 +1,4 @@
 import { pgTable, serial, text, boolean, timestamp, integer, real } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
 
 export const user = pgTable("user", {
     id: text("id").primaryKey(),
@@ -94,6 +93,7 @@ export const books = pgTable("books", {
     title: text("title").notNull(),
     description: text("description"),
     order: integer("order").default(0).notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -105,6 +105,7 @@ export const units = pgTable("units", {
         .references(() => books.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     order: integer("order").default(0).notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -117,6 +118,7 @@ export const lessons = pgTable("lessons", {
     title: text("title").notNull(),
     type: text("type").notNull(), // e.g., "vocabulary", "reading", "grammar"
     order: integer("order").default(0).notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

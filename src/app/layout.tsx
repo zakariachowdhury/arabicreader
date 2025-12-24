@@ -16,11 +16,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME || "TaskFlow";
+const appName = process.env.NEXT_PUBLIC_APP_NAME || "Arabic Reader";
 
 export const metadata: Metadata = {
-  title: `${appName} - Modern Task Management`,
-  description: `Focus on what matters, effortlessly with ${appName}.`,
+  title: `${appName} - AI-Powered Arabic Learning`,
+  description: `Master Arabic vocabulary and reading skills with ${appName}.`,
 };
 
 export default function RootLayout({

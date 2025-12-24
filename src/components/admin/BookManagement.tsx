@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Book } from "@/db/schema";
 import { createBook, updateBook, deleteBook, updateBookOrder } from "@/app/admin/actions";
-import { Edit2, Trash2, Save, X, Plus, BookOpen, GripVertical } from "lucide-react";
+import { Edit2, Trash2, Save, X, Plus, BookOpen, GripVertical, ToggleLeft, ToggleRight } from "lucide-react";
 import { DeleteConfirmation } from "./DeleteConfirmation";
 import Link from "next/link";
 import {
@@ -24,7 +24,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-function SortableBookRow({ book, editingId, editData, isPending, deletingId, onEdit, onCancel, onSave, onDeleteClick, onDeleteConfirm, onCancelDelete, setEditData }: {
+function SortableBookRow({ book, editingId, editData, isPending, deletingId, onEdit, onCancel, onSave, onDeleteClick, onDeleteConfirm, onCancelDelete, setEditData, onToggleEnabled }: {
     book: Book;
     editingId: number | null;
     editData: { title: string; description: string } | null;
@@ -37,6 +37,7 @@ function SortableBookRow({ book, editingId, editData, isPending, deletingId, onE
     onDeleteConfirm: (bookId: number) => void;
     onCancelDelete: () => void;
     setEditData: (data: { title: string; description: string } | null) => void;
+    onToggleEnabled: (bookId: number, currentEnabled: boolean) => void;
 }) {
     const {
         attributes,
@@ -100,6 +101,34 @@ function SortableBookRow({ book, editingId, editData, isPending, deletingId, onE
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                 {new Date(book.createdAt).toLocaleDateString()}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap">
+                {editingId === book.id ? (
+                    <div className="text-slate-400">-</div>
+                ) : (
+                    <button
+                        onClick={() => onToggleEnabled(book.id, book.enabled)}
+                        disabled={isPending}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                            book.enabled 
+                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" 
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                        title={book.enabled ? "Disable" : "Enable"}
+                    >
+                        {book.enabled ? (
+                            <>
+                                <ToggleRight className="w-4 h-4" />
+                                <span className="text-xs font-medium">Enabled</span>
+                            </>
+                        ) : (
+                            <>
+                                <ToggleLeft className="w-4 h-4" />
+                                <span className="text-xs font-medium">Disabled</span>
+                            </>
+                        )}
+                    </button>
+                )}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-right">
                 {editingId === book.id ? (
@@ -260,6 +289,23 @@ export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
         });
     };
 
+    const handleToggleEnabled = async (bookId: number, currentEnabled: boolean) => {
+        const newEnabled = !currentEnabled;
+        startTransition(async () => {
+            try {
+                await updateBook(bookId, { enabled: newEnabled });
+                setBooks(books.map(b => 
+                    b.id === bookId 
+                        ? { ...b, enabled: newEnabled, updatedAt: new Date() }
+                        : b
+                ));
+            } catch (error) {
+                console.error("Failed to toggle book enabled state:", error);
+                alert("Failed to update book. Please try again.");
+            }
+        });
+    };
+
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
 
@@ -367,6 +413,7 @@ export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Title</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Created</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
                                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -387,6 +434,7 @@ export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
                                             onDeleteConfirm={handleDelete}
                                             onCancelDelete={handleCancelDelete}
                                             setEditData={setEditData}
+                                            onToggleEnabled={handleToggleEnabled}
                                         />
                                     ))}
                                 </SortableContext>

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Lesson } from "@/db/schema";
 import { createLesson, updateLesson, deleteLesson, updateLessonOrder } from "@/app/admin/actions";
-import { Edit2, Trash2, Save, X, Plus, BookOpen, GripVertical } from "lucide-react";
+import { Edit2, Trash2, Save, X, Plus, BookOpen, GripVertical, ToggleLeft, ToggleRight } from "lucide-react";
 import { DeleteConfirmation } from "./DeleteConfirmation";
 import Link from "next/link";
 import {
@@ -24,7 +24,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-function SortableLessonRow({ lesson, editingId, editData, isPending, deletingId, onEdit, onCancel, onSave, onDeleteClick, onDeleteConfirm, onCancelDelete, setEditData }: {
+function SortableLessonRow({ lesson, editingId, editData, isPending, deletingId, onEdit, onCancel, onSave, onDeleteClick, onDeleteConfirm, onCancelDelete, setEditData, onToggleEnabled }: {
     lesson: Lesson;
     editingId: number | null;
     editData: { title: string; type: string; order: number } | null;
@@ -37,6 +37,7 @@ function SortableLessonRow({ lesson, editingId, editData, isPending, deletingId,
     onDeleteConfirm: (lessonId: number) => void;
     onCancelDelete: () => void;
     setEditData: (data: { title: string; type: string; order: number } | null) => void;
+    onToggleEnabled: (lessonId: number, currentEnabled: boolean) => void;
 }) {
     const {
         attributes,
@@ -112,6 +113,34 @@ function SortableLessonRow({ lesson, editingId, editData, isPending, deletingId,
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                 {new Date(lesson.createdAt).toLocaleDateString()}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap">
+                {editingId === lesson.id ? (
+                    <div className="text-slate-400">-</div>
+                ) : (
+                    <button
+                        onClick={() => onToggleEnabled(lesson.id, lesson.enabled)}
+                        disabled={isPending}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                            lesson.enabled 
+                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" 
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                        title={lesson.enabled ? "Disable" : "Enable"}
+                    >
+                        {lesson.enabled ? (
+                            <>
+                                <ToggleRight className="w-4 h-4" />
+                                <span className="text-xs font-medium">Enabled</span>
+                            </>
+                        ) : (
+                            <>
+                                <ToggleLeft className="w-4 h-4" />
+                                <span className="text-xs font-medium">Disabled</span>
+                            </>
+                        )}
+                    </button>
+                )}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-right">
                 {editingId === lesson.id ? (
@@ -277,6 +306,23 @@ export function LessonManagement({ initialLessons, unitId, unitTitle }: { initia
         });
     };
 
+    const handleToggleEnabled = async (lessonId: number, currentEnabled: boolean) => {
+        const newEnabled = !currentEnabled;
+        startTransition(async () => {
+            try {
+                await updateLesson(lessonId, { enabled: newEnabled });
+                setLessons(lessons.map(l => 
+                    l.id === lessonId 
+                        ? { ...l, enabled: newEnabled, updatedAt: new Date() }
+                        : l
+                ));
+            } catch (error) {
+                console.error("Failed to toggle lesson enabled state:", error);
+                alert("Failed to update lesson. Please try again.");
+            }
+        });
+    };
+
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
 
@@ -387,6 +433,7 @@ export function LessonManagement({ initialLessons, unitId, unitTitle }: { initia
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Title</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Created</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
                                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -407,6 +454,7 @@ export function LessonManagement({ initialLessons, unitId, unitTitle }: { initia
                                             onDeleteConfirm={handleDelete}
                                             onCancelDelete={handleCancelDelete}
                                             setEditData={setEditData}
+                                            onToggleEnabled={handleToggleEnabled}
                                         />
                                     ))}
                                 </SortableContext>

@@ -380,11 +380,11 @@ export async function createBook(data: { title: string; description?: string | n
     }
 }
 
-export async function updateBook(id: number, data: { title?: string; description?: string | null; order?: number }) {
+export async function updateBook(id: number, data: { title?: string; description?: string | null; order?: number; enabled?: boolean }) {
     await requireAdmin();
 
     try {
-        const updateData: { title?: string; description?: string | null; order?: number; updatedAt: Date } = {
+        const updateData: { title?: string; description?: string | null; order?: number; enabled?: boolean; updatedAt: Date } = {
             updatedAt: new Date(),
         };
         if (data.title !== undefined) {
@@ -395,6 +395,9 @@ export async function updateBook(id: number, data: { title?: string; description
         }
         if (data.order !== undefined) {
             updateData.order = data.order;
+        }
+        if (data.enabled !== undefined) {
+            updateData.enabled = data.enabled;
         }
 
         await db
@@ -514,11 +517,11 @@ export async function createUnit(bookId: number, data: { title: string; order?: 
     }
 }
 
-export async function updateUnit(id: number, data: { title?: string; order?: number }) {
+export async function updateUnit(id: number, data: { title?: string; order?: number; enabled?: boolean }) {
     await requireAdmin();
 
     try {
-        const updateData: { title?: string; order?: number; updatedAt: Date } = {
+        const updateData: { title?: string; order?: number; enabled?: boolean; updatedAt: Date } = {
             updatedAt: new Date(),
         };
         if (data.title !== undefined) {
@@ -526,6 +529,9 @@ export async function updateUnit(id: number, data: { title?: string; order?: num
         }
         if (data.order !== undefined) {
             updateData.order = data.order;
+        }
+        if (data.enabled !== undefined) {
+            updateData.enabled = data.enabled;
         }
 
         await db
@@ -660,11 +666,11 @@ export async function createLesson(unitId: number, data: { title: string; type: 
     }
 }
 
-export async function updateLesson(id: number, data: { title?: string; type?: string; order?: number }) {
+export async function updateLesson(id: number, data: { title?: string; type?: string; order?: number; enabled?: boolean }) {
     await requireAdmin();
 
     try {
-        const updateData: { title?: string; type?: string; order?: number; updatedAt: Date } = {
+        const updateData: { title?: string; type?: string; order?: number; enabled?: boolean; updatedAt: Date } = {
             updatedAt: new Date(),
         };
         if (data.title !== undefined) {
@@ -675,6 +681,9 @@ export async function updateLesson(id: number, data: { title?: string; type?: st
         }
         if (data.order !== undefined) {
             updateData.order = data.order;
+        }
+        if (data.enabled !== undefined) {
+            updateData.enabled = data.enabled;
         }
 
         await db

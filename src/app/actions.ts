@@ -2223,6 +2223,7 @@ export async function getBooks() {
         return await db
             .select()
             .from(books)
+            .where(eq(books.enabled, true))
             .orderBy(asc(books.order), asc(books.id));
     } catch (error) {
         console.error("Failed to fetch books:", error);
@@ -2236,36 +2237,37 @@ export async function getBooksWithStats() {
         const allBooks = await db
             .select()
             .from(books)
+            .where(eq(books.enabled, true))
             .orderBy(asc(books.order), asc(books.id));
 
         const booksWithStats = await Promise.all(
             allBooks.map(async (book) => {
-                // Count units
+                // Count units (only enabled ones)
                 const bookUnits = await db
                     .select({ id: units.id })
                     .from(units)
-                    .where(eq(units.bookId, book.id));
+                    .where(and(eq(units.bookId, book.id), eq(units.enabled, true)));
                 
                 const unitIds = bookUnits.map(u => u.id);
                 
-                // Count lessons
+                // Count lessons (only enabled ones)
                 let lessonCount = 0;
                 if (unitIds.length > 0) {
                     const lessonsResult = await db
                         .select({ count: sql<number>`COUNT(*)`.as('count') })
                         .from(lessons)
-                        .where(inArray(lessons.unitId, unitIds));
+                        .where(and(inArray(lessons.unitId, unitIds), eq(lessons.enabled, true)));
                     lessonCount = Number(lessonsResult[0]?.count || 0);
                 }
                 
-                // Count vocabulary words
+                // Count vocabulary words (only from enabled lessons)
                 let vocabularyCount = 0;
                 if (unitIds.length > 0) {
                     const vocabularyResult = await db
                         .select({ count: sql<number>`COUNT(*)`.as('count') })
                         .from(vocabularyWords)
                         .innerJoin(lessons, eq(vocabularyWords.lessonId, lessons.id))
-                        .where(inArray(lessons.unitId, unitIds));
+                        .where(and(inArray(lessons.unitId, unitIds), eq(lessons.enabled, true)));
                     vocabularyCount = Number(vocabularyResult[0]?.count || 0);
                 }
 
@@ -2295,7 +2297,7 @@ export async function getBookById(id: number) {
         const [book] = await db
             .select()
             .from(books)
-            .where(eq(books.id, id))
+            .where(and(eq(books.id, id), eq(books.enabled, true)))
             .limit(1);
         return book || null;
     } catch (error) {
@@ -2309,10 +2311,19 @@ export async function getUnitsByBook(bookId: number) {
     if (!session) return [];
 
     try {
+        // First check if the book is enabled
+        const [book] = await db
+            .select()
+            .from(books)
+            .where(and(eq(books.id, bookId), eq(books.enabled, true)))
+            .limit(1);
+        
+        if (!book) return [];
+
         return await db
             .select()
             .from(units)
-            .where(eq(units.bookId, bookId))
+            .where(and(eq(units.bookId, bookId), eq(units.enabled, true)))
             .orderBy(asc(units.order), asc(units.id));
     } catch (error) {
         console.error("Failed to fetch units:", error);
@@ -2325,10 +2336,24 @@ export async function getUnitById(id: number) {
     if (!session) return null;
 
     try {
+        // Get unit and verify it and its book are enabled
         const [unit] = await db
-            .select()
+            .select({
+                id: units.id,
+                bookId: units.bookId,
+                title: units.title,
+                order: units.order,
+                enabled: units.enabled,
+                createdAt: units.createdAt,
+                updatedAt: units.updatedAt,
+            })
             .from(units)
-            .where(eq(units.id, id))
+            .innerJoin(books, eq(units.bookId, books.id))
+            .where(and(
+                eq(units.id, id),
+                eq(units.enabled, true),
+                eq(books.enabled, true)
+            ))
             .limit(1);
         return unit || null;
     } catch (error) {
@@ -2342,10 +2367,24 @@ export async function getLessonsByUnit(unitId: number) {
     if (!session) return [];
 
     try {
+        // First check if the unit and its book are enabled
+        const [unit] = await db
+            .select()
+            .from(units)
+            .innerJoin(books, eq(units.bookId, books.id))
+            .where(and(
+                eq(units.id, unitId),
+                eq(units.enabled, true),
+                eq(books.enabled, true)
+            ))
+            .limit(1);
+        
+        if (!unit) return [];
+
         return await db
             .select()
             .from(lessons)
-            .where(eq(lessons.unitId, unitId))
+            .where(and(eq(lessons.unitId, unitId), eq(lessons.enabled, true)))
             .orderBy(asc(lessons.order), asc(lessons.id));
     } catch (error) {
         console.error("Failed to fetch lessons:", error);
@@ -2358,10 +2397,27 @@ export async function getLessonById(id: number) {
     if (!session) return null;
 
     try {
+        // Get lesson and verify it, its unit, and its book are all enabled
         const [lesson] = await db
-            .select()
+            .select({
+                id: lessons.id,
+                unitId: lessons.unitId,
+                title: lessons.title,
+                type: lessons.type,
+                order: lessons.order,
+                enabled: lessons.enabled,
+                createdAt: lessons.createdAt,
+                updatedAt: lessons.updatedAt,
+            })
             .from(lessons)
-            .where(eq(lessons.id, id))
+            .innerJoin(units, eq(lessons.unitId, units.id))
+            .innerJoin(books, eq(units.bookId, books.id))
+            .where(and(
+                eq(lessons.id, id),
+                eq(lessons.enabled, true),
+                eq(units.enabled, true),
+                eq(books.enabled, true)
+            ))
             .limit(1);
         return lesson || null;
     } catch (error) {
@@ -2375,6 +2431,22 @@ export async function getVocabularyWordsByLesson(lessonId: number) {
     if (!session) return [];
 
     try {
+        // First verify that the lesson, unit, and book are all enabled
+        const [lesson] = await db
+            .select()
+            .from(lessons)
+            .innerJoin(units, eq(lessons.unitId, units.id))
+            .innerJoin(books, eq(units.bookId, books.id))
+            .where(and(
+                eq(lessons.id, lessonId),
+                eq(lessons.enabled, true),
+                eq(units.enabled, true),
+                eq(books.enabled, true)
+            ))
+            .limit(1);
+        
+        if (!lesson) return [];
+
         return await db
             .select()
             .from(vocabularyWords)
