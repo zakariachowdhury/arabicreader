@@ -402,7 +402,86 @@ export function ConversationDisplay({ sentences }: ConversationDisplayProps) {
                 </div>
             ) : (
                 <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Mobile view: Single column with alternating styles */}
+                    <div className="space-y-4 md:hidden">
+                        {sortedSentences.map((sentence, index) => {
+                            const isRightColumn = sentence.order % 2 === 0;
+                            const isPlaying = playingSentenceId === sentence.id;
+                            const hasText = selectedLanguage === "arabic" 
+                                ? sentence.arabic && sentence.arabic.trim().length > 0
+                                : selectedLanguage === "english"
+                                ? sentence.english && sentence.english.trim().length > 0
+                                : (sentence.arabic && sentence.arabic.trim().length > 0) || (sentence.english && sentence.english.trim().length > 0);
+                            
+                            const bgColor = sentence.isTitle 
+                                ? "bg-red-50 border-red-300" 
+                                : isRightColumn 
+                                    ? "bg-emerald-50 border-emerald-200" 
+                                    : "bg-blue-50 border-blue-200";
+                            
+                            const playingBgColor = sentence.isTitle 
+                                ? "border-red-500 border-2 bg-red-100 shadow-md ring-2 ring-red-200" 
+                                : isRightColumn 
+                                    ? "border-emerald-500 border-2 bg-emerald-100 shadow-md ring-2 ring-emerald-200" 
+                                    : "border-blue-500 border-2 bg-blue-100 shadow-md ring-2 ring-blue-200";
+                            
+                            const borderColor = sentence.isTitle 
+                                ? "text-red-600 border-red-200" 
+                                : isRightColumn 
+                                    ? "text-slate-600 border-emerald-200" 
+                                    : "text-slate-600 border-blue-200";
+                            
+                            const buttonBgColor = isPlaying
+                                ? (isRightColumn ? "bg-emerald-600 text-white" : "bg-blue-600 text-white")
+                                : (isRightColumn ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" : "bg-blue-100 text-blue-700 hover:bg-blue-200");
+                            
+                            return (
+                                <div
+                                    key={sentence.id}
+                                    className={`${bgColor} border rounded-lg p-4 shadow-sm transition-all ${
+                                        isPlaying ? playingBgColor : ""
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex-1">
+                                            <div
+                                                className={`font-medium mb-2 ${
+                                                    sentence.isTitle 
+                                                        ? "text-red-700 font-bold" 
+                                                        : "text-slate-900"
+                                                }`}
+                                                dir="rtl"
+                                                style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg") }}
+                                            >
+                                                {sentence.arabic}
+                                            </div>
+                                            {showTranslations && sentence.english && (
+                                                <div className={`text-sm mt-2 pt-2 border-t ${borderColor}`}>
+                                                    {sentence.english}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {hasText && (
+                                            <button
+                                                onClick={() => handlePlaySentence(sentence)}
+                                                className={`flex-shrink-0 p-2 rounded-lg transition-colors ${buttonBgColor}`}
+                                                title={selectedLanguage === "both" ? "Play Arabic then English" : `Play ${selectedLanguage === "arabic" ? "Arabic" : "English"} audio`}
+                                            >
+                                                {isPlaying ? (
+                                                    <Pause className="w-4 h-4" />
+                                                ) : (
+                                                    <Volume2 className="w-4 h-4" />
+                                                )}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Desktop view: Two columns */}
+                    <div className="hidden md:grid md:grid-cols-2 gap-6">
                         {/* Right Column (first in RTL) */}
                         <div className="space-y-4 md:order-2">
                             {rightColumnSentences.map((sentence, index) => {
