@@ -694,7 +694,7 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
                 setParsedWords(data.wordPairs);
                 setDuplicates(data.duplicates || []);
                 // Select all words by default
-                setSelectedIndices(new Set(data.wordPairs.map((_, index) => index)));
+                setSelectedIndices(new Set(data.wordPairs.map((_: unknown, index: number) => index)));
                 setShowParsedWords(true);
                 setUploadProgress(`Successfully extracted ${data.wordPairs.length} word pair${data.wordPairs.length !== 1 ? 's' : ''}${data.duplicates && data.duplicates.length > 0 ? ` (${data.duplicates.length} duplicate${data.duplicates.length !== 1 ? 's' : ''} excluded)` : ''}`);
             } else {
@@ -719,7 +719,7 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
         if (!parsedWords || parsedWords.length === 0) return;
 
         // Only add selected words
-        const selectedWords = parsedWords.filter((_, index) => selectedIndices.has(index));
+        const selectedWords = parsedWords.filter((_: unknown, index: number) => selectedIndices.has(index));
         if (selectedWords.length === 0) {
             alert("Please select at least one word pair to add.");
             return;
@@ -768,7 +768,7 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
             setSelectedIndices(new Set());
         } else {
             // Select all
-            setSelectedIndices(new Set(parsedWords.map((_, index) => index)));
+            setSelectedIndices(new Set(parsedWords.map((_: unknown, index: number) => index)));
         }
     };
 
@@ -1174,7 +1174,7 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
                                         <td className="px-4 py-3 whitespace-nowrap text-right">
                                             <button
                                                 onClick={() => {
-                                                    const updated = parsedWords.filter((_, i) => i !== index);
+                                                    const updated = parsedWords.filter((_: unknown, i: number) => i !== index);
                                                     setParsedWords(updated);
                                                     if (updated.length === 0) {
                                                         setShowParsedWords(false);
