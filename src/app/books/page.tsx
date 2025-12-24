@@ -25,7 +25,7 @@ export default async function BooksPage() {
             <div className="max-w-7xl mx-auto">
                 <header className="mb-10">
                     <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl mb-2">
-                        Arabic Reader
+                        Books
                     </h1>
                     <p className="text-slate-500">Choose a book to start learning</p>
                 </header>
@@ -36,7 +36,7 @@ export default async function BooksPage() {
                         <p className="text-slate-500 text-lg">No books available yet.</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {books.map((book) => {
                             const progress = booksProgress[book.id] || {
                                 totalWords: 0,
