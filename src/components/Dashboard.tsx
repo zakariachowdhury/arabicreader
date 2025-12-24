@@ -29,13 +29,13 @@ export async function Dashboard({ user }: { user: { name: string; email: string;
     });
 
     return (
-        <main className="py-12 px-4 sm:px-6 lg:px-8 font-sans bg-white">
-            <div className="max-w-2xl mx-auto">
-                <header className="mb-10 text-center sm:text-left">
+        <main className="py-12 px-4 sm:px-6 lg:px-8 font-sans bg-white min-h-screen">
+            <div className="max-w-7xl mx-auto">
+                <header className="mb-10">
                     <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl mb-2">
                         Your Tasks
                     </h1>
-                    <p className="text-slate-500">Welcome back, <span className="text-slate-900 font-semibold">{user.name}</span></p>
+                    <p className="text-slate-500">Organize your tasks and track your progress</p>
                 </header>
 
                 {!user.emailVerified && (

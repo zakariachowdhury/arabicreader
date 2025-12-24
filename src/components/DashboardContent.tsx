@@ -47,8 +47,8 @@ export function DashboardContent({ todos, groups, todoCounts, defaultGroupId }: 
     });
 
     return (
-        <div className="bg-white rounded-3xl shadow-2xl shadow-blue-500/5 border border-slate-100 overflow-hidden">
-            <div className="p-8 sm:p-12">
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+            <div className="p-8">
                 <DashboardTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
                 {activeTab === "tasks" ? (
