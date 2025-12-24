@@ -1,0 +1,2 @@
+ALTER TABLE "books" ADD COLUMN IF NOT EXISTS "order" integer DEFAULT 0 NOT NULL;
+

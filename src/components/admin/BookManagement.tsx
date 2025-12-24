@@ -2,9 +2,151 @@
 
 import { useState, useTransition } from "react";
 import { Book } from "@/db/schema";
-import { createBook, updateBook, deleteBook } from "@/app/admin/actions";
-import { Edit2, Trash2, Save, X, Plus, BookOpen } from "lucide-react";
+import { createBook, updateBook, deleteBook, updateBookOrder } from "@/app/admin/actions";
+import { Edit2, Trash2, Save, X, Plus, BookOpen, GripVertical } from "lucide-react";
 import Link from "next/link";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+function SortableBookRow({ book, editingId, editData, isPending, onEdit, onCancel, onSave, onDelete, setEditData }: {
+    book: Book;
+    editingId: number | null;
+    editData: { title: string; description: string } | null;
+    isPending: boolean;
+    onEdit: (book: Book) => void;
+    onCancel: () => void;
+    onSave: (bookId: number) => void;
+    onDelete: (bookId: number) => void;
+    setEditData: (data: { title: string; description: string } | null) => void;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: book.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <tr
+            ref={setNodeRef}
+            style={style}
+            className={`hover:bg-slate-50 transition-colors ${isDragging ? "bg-slate-100" : ""}`}
+        >
+            <td className="px-6 py-4 w-12">
+                <button
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 p-1"
+                    title="Drag to reorder"
+                >
+                    <GripVertical className="w-5 h-5" />
+                </button>
+            </td>
+            <td className="px-6 py-4">
+                {editingId === book.id ? (
+                    <input
+                        type="text"
+                        value={editData?.title || ""}
+                        onChange={(e) => setEditData({ ...editData!, title: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                ) : (
+                    <Link
+                        href={`/admin/books/${book.id}/units`}
+                        className="font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                        {book.title}
+                    </Link>
+                )}
+            </td>
+            <td className="px-6 py-4">
+                {editingId === book.id ? (
+                    <textarea
+                        value={editData?.description || ""}
+                        onChange={(e) => setEditData({ ...editData!, description: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={2}
+                    />
+                ) : (
+                    <div className="text-slate-600 max-w-md">{book.description || <span className="text-slate-400">No description</span>}</div>
+                )}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                {new Date(book.createdAt).toLocaleDateString()}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-right">
+                {editingId === book.id ? (
+                    <div className="flex items-center justify-end gap-2">
+                        <button
+                            onClick={() => onSave(book.id)}
+                            disabled={isPending}
+                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Save"
+                        >
+                            <Save className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={onCancel}
+                            disabled={isPending}
+                            className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                            title="Cancel"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-end gap-2">
+                        <Link
+                            href={`/admin/books/${book.id}/units`}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Manage Units"
+                        >
+                            <BookOpen className="w-4 h-4" />
+                        </Link>
+                        <button
+                            onClick={() => onEdit(book)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit"
+                        >
+                            <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => onDelete(book.id)}
+                            disabled={isPending}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
+            </td>
+        </tr>
+    );
+}
 
 export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
     const [books, setBooks] = useState(initialBooks);
@@ -13,6 +155,13 @@ export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
     const [isCreating, setIsCreating] = useState(false);
     const [newBook, setNewBook] = useState({ title: "", description: "" });
     const [isPending, startTransition] = useTransition();
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
     const handleEdit = (book: Book) => {
         setEditingId(book.id);
@@ -90,6 +239,30 @@ export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
         });
     };
 
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            const oldIndex = books.findIndex((book) => book.id === active.id);
+            const newIndex = books.findIndex((book) => book.id === over.id);
+
+            const newBooks = arrayMove(books, oldIndex, newIndex);
+            setBooks(newBooks);
+
+            // Update order in database
+            startTransition(async () => {
+                try {
+                    await updateBookOrder(newBooks.map((b) => b.id));
+                } catch (error) {
+                    console.error("Failed to update book order:", error);
+                    alert("Failed to update book order. Please try again.");
+                    // Revert on error
+                    setBooks(books);
+                }
+            });
+        }
+    };
+
     return (
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
@@ -161,101 +334,41 @@ export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
                         <p className="text-slate-500">No books yet. Create your first book to get started.</p>
                     </div>
                 ) : (
-                    <table className="w-full">
-                        <thead className="bg-slate-50">
-                            <tr>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Title</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Created</th>
-                                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {books.map((book) => (
-                                <tr key={book.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        {editingId === book.id ? (
-                                            <input
-                                                type="text"
-                                                value={editData?.title || ""}
-                                                onChange={(e) => setEditData({ ...editData!, title: e.target.value })}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                        ) : (
-                                            <Link
-                                                href={`/admin/books/${book.id}/units`}
-                                                className="font-medium text-blue-600 hover:text-blue-700 hover:underline"
-                                            >
-                                                {book.title}
-                                            </Link>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        {editingId === book.id ? (
-                                            <textarea
-                                                value={editData?.description || ""}
-                                                onChange={(e) => setEditData({ ...editData!, description: e.target.value })}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                rows={2}
-                                            />
-                                        ) : (
-                                            <div className="text-slate-600 max-w-md">{book.description || <span className="text-slate-400">No description</span>}</div>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                                        {new Date(book.createdAt).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                                        {editingId === book.id ? (
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => handleSave(book.id)}
-                                                    disabled={isPending}
-                                                    className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
-                                                    title="Save"
-                                                >
-                                                    <Save className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={handleCancel}
-                                                    disabled={isPending}
-                                                    className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                                                    title="Cancel"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center justify-end gap-2">
-                                                <Link
-                                                    href={`/admin/books/${book.id}/units`}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                    title="Manage Units"
-                                                >
-                                                    <BookOpen className="w-4 h-4" />
-                                                </Link>
-                                                <button
-                                                    onClick={() => handleEdit(book)}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(book.id)}
-                                                    disabled={isPending}
-                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </td>
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <table className="w-full">
+                            <thead className="bg-slate-50">
+                                <tr>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider w-12"></th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Title</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Created</th>
+                                    <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                <SortableContext items={books.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                                    {books.map((book) => (
+                                        <SortableBookRow
+                                            key={book.id}
+                                            book={book}
+                                            editingId={editingId}
+                                            editData={editData}
+                                            isPending={isPending}
+                                            onEdit={handleEdit}
+                                            onCancel={handleCancel}
+                                            onSave={handleSave}
+                                            onDelete={handleDelete}
+                                            setEditData={setEditData}
+                                        />
+                                    ))}
+                                </SortableContext>
+                            </tbody>
+                        </table>
+                    </DndContext>
                 )}
             </div>
         </div>

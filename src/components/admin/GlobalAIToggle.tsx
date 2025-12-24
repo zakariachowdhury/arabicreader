@@ -25,12 +25,12 @@ export function GlobalAIToggle({ initialEnabled }: { initialEnabled: boolean }) 
     };
 
     return (
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-xl ${enabled ? "bg-purple-100" : "bg-slate-100"}`}>
+                    <div className={`p-3 rounded-xl ${enabled ? "bg-slate-200" : "bg-slate-100"}`}>
                         {enabled ? (
-                            <Sparkles className={`w-6 h-6 ${enabled ? "text-purple-600" : "text-slate-400"}`} />
+                            <Sparkles className={`w-6 h-6 ${enabled ? "text-slate-700" : "text-slate-400"}`} />
                         ) : (
                             <XCircle className="w-6 h-6 text-slate-400" />
                         )}
@@ -52,7 +52,7 @@ export function GlobalAIToggle({ initialEnabled }: { initialEnabled: boolean }) 
                         disabled={isPending}
                         className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600 disabled:opacity-50"></div>
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-slate-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-700 disabled:opacity-50"></div>
                 </label>
             </div>
         </div>

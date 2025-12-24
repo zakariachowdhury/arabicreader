@@ -1,4 +1,4 @@
-# Arabic Reader - AI-Powered Arabic Learning Platform
+# ArabicReader - AI-Powered Arabic Learning Platform
 
 A modern, intelligent Arabic learning application that combines structured content with AI-powered assistance to help users master Arabic vocabulary and reading skills.
 

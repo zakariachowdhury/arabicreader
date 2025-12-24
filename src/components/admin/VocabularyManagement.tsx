@@ -2,8 +2,136 @@
 
 import { useState, useTransition, useRef } from "react";
 import { VocabularyWord } from "@/db/schema";
-import { addVocabularyWord, updateVocabularyWord, deleteVocabularyWord, bulkAddVocabularyWords } from "@/app/admin/actions";
-import { Edit2, Trash2, Save, X, Plus, Upload, Loader2, CheckCircle2 } from "lucide-react";
+import { addVocabularyWord, updateVocabularyWord, deleteVocabularyWord, bulkAddVocabularyWords, updateVocabularyOrder } from "@/app/admin/actions";
+import { Edit2, Trash2, Save, X, Plus, Upload, Loader2, CheckCircle2, GripVertical } from "lucide-react";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+function SortableVocabularyRow({ word, editingId, editData, isPending, onEdit, onCancel, onSave, onDelete, setEditData }: {
+    word: VocabularyWord;
+    editingId: number | null;
+    editData: { arabic: string; english: string; order: number } | null;
+    isPending: boolean;
+    onEdit: (word: VocabularyWord) => void;
+    onCancel: () => void;
+    onSave: (wordId: number) => void;
+    onDelete: (wordId: number) => void;
+    setEditData: (data: { arabic: string; english: string; order: number } | null) => void;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: word.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <tr
+            ref={setNodeRef}
+            style={style}
+            className={`hover:bg-slate-50 transition-colors ${isDragging ? "bg-slate-100" : ""}`}
+        >
+            <td className="px-6 py-4 w-12">
+                <button
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 p-1"
+                    title="Drag to reorder"
+                >
+                    <GripVertical className="w-5 h-5" />
+                </button>
+            </td>
+            <td className="px-6 py-4">
+                {editingId === word.id ? (
+                    <input
+                        type="text"
+                        value={editData?.arabic || ""}
+                        onChange={(e) => setEditData({ ...editData!, arabic: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        dir="rtl"
+                    />
+                ) : (
+                    <div className="font-medium text-slate-900 text-lg" dir="rtl">{word.arabic}</div>
+                )}
+            </td>
+            <td className="px-6 py-4">
+                {editingId === word.id ? (
+                    <input
+                        type="text"
+                        value={editData?.english || ""}
+                        onChange={(e) => setEditData({ ...editData!, english: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                ) : (
+                    <div className="text-slate-600">{word.english}</div>
+                )}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-right">
+                {editingId === word.id ? (
+                    <div className="flex items-center justify-end gap-2">
+                        <button
+                            onClick={() => onSave(word.id)}
+                            disabled={isPending}
+                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Save"
+                        >
+                            <Save className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={onCancel}
+                            disabled={isPending}
+                            className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                            title="Cancel"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-end gap-2">
+                        <button
+                            onClick={() => onEdit(word)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit"
+                        >
+                            <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => onDelete(word.id)}
+                            disabled={isPending}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
+            </td>
+        </tr>
+    );
+}
 
 export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { initialWords: VocabularyWord[]; lessonId: number; lessonTitle: string }) {
     const [words, setWords] = useState(initialWords);
@@ -12,6 +140,13 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
     const [isCreating, setIsCreating] = useState(false);
     const [newWord, setNewWord] = useState({ arabic: "", english: "", order: words.length });
     const [isPending, startTransition] = useTransition();
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
     
     // Image upload states
     const [isUploading, setIsUploading] = useState(false);
@@ -168,6 +303,30 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
         setParsedWords(null);
         setShowParsedWords(false);
         setUploadError(null);
+    };
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            const oldIndex = words.findIndex((word) => word.id === active.id);
+            const newIndex = words.findIndex((word) => word.id === over.id);
+
+            const newWords = arrayMove(words, oldIndex, newIndex);
+            setWords(newWords);
+
+            // Update order in database
+            startTransition(async () => {
+                try {
+                    await updateVocabularyOrder(newWords.map((w) => w.id));
+                } catch (error) {
+                    console.error("Failed to update vocabulary order:", error);
+                    alert("Failed to update vocabulary order. Please try again.");
+                    // Revert on error
+                    setWords(words);
+                }
+            });
+        }
     };
 
     return (
@@ -341,16 +500,6 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
                                 />
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Order</label>
-                            <input
-                                type="number"
-                                value={newWord.order}
-                                onChange={(e) => setNewWord({ ...newWord, order: parseInt(e.target.value) || 0 })}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                min="0"
-                            />
-                        </div>
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={handleCreate}
@@ -379,100 +528,40 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
                         <p className="text-slate-500">No vocabulary words yet. Add your first word pair to get started.</p>
                     </div>
                 ) : (
-                    <table className="w-full">
-                        <thead className="bg-slate-50">
-                            <tr>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Order</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Arabic</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">English</th>
-                                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {words.map((word) => (
-                                <tr key={word.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {editingId === word.id ? (
-                                            <input
-                                                type="number"
-                                                value={editData?.order ?? 0}
-                                                onChange={(e) => setEditData({ ...editData!, order: parseInt(e.target.value) || 0 })}
-                                                className="w-20 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                min="0"
-                                            />
-                                        ) : (
-                                            <div className="text-slate-600 font-medium">{word.order}</div>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        {editingId === word.id ? (
-                                            <input
-                                                type="text"
-                                                value={editData?.arabic || ""}
-                                                onChange={(e) => setEditData({ ...editData!, arabic: e.target.value })}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                dir="rtl"
-                                            />
-                                        ) : (
-                                            <div className="font-medium text-slate-900 text-lg" dir="rtl">{word.arabic}</div>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        {editingId === word.id ? (
-                                            <input
-                                                type="text"
-                                                value={editData?.english || ""}
-                                                onChange={(e) => setEditData({ ...editData!, english: e.target.value })}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                        ) : (
-                                            <div className="text-slate-600">{word.english}</div>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                                        {editingId === word.id ? (
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => handleSave(word.id)}
-                                                    disabled={isPending}
-                                                    className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
-                                                    title="Save"
-                                                >
-                                                    <Save className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={handleCancel}
-                                                    disabled={isPending}
-                                                    className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                                                    title="Cancel"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => handleEdit(word)}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(word.id)}
-                                                    disabled={isPending}
-                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </td>
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <table className="w-full">
+                            <thead className="bg-slate-50">
+                                <tr>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider w-12"></th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Arabic</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">English</th>
+                                    <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                <SortableContext items={words.map(w => w.id)} strategy={verticalListSortingStrategy}>
+                                    {words.map((word) => (
+                                        <SortableVocabularyRow
+                                            key={word.id}
+                                            word={word}
+                                            editingId={editingId}
+                                            editData={editData}
+                                            isPending={isPending}
+                                            onEdit={handleEdit}
+                                            onCancel={handleCancel}
+                                            onSave={handleSave}
+                                            onDelete={handleDelete}
+                                            setEditData={setEditData}
+                                        />
+                                    ))}
+                                </SortableContext>
+                            </tbody>
+                        </table>
+                    </DndContext>
                 )}
             </div>
         </div>

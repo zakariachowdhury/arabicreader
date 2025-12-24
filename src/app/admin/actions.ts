@@ -330,7 +330,7 @@ export async function getAllBooks() {
         return await db
             .select()
             .from(books)
-            .orderBy(asc(books.title));
+            .orderBy(asc(books.order), asc(books.id));
     } catch (error) {
         console.error("Failed to fetch books:", error);
         throw new Error("Failed to fetch books");
@@ -357,11 +357,18 @@ export async function createBook(data: { title: string; description?: string | n
     await requireAdmin();
 
     try {
+        // Get the max order value to set the new book's order
+        const maxOrderResult = await db
+            .select({ maxOrder: sql<number>`COALESCE(MAX(${books.order}), -1)` })
+            .from(books);
+        const maxOrder = maxOrderResult[0]?.maxOrder ?? -1;
+
         const [newBook] = await db
             .insert(books)
             .values({
                 title: data.title.trim(),
                 description: data.description?.trim() || null,
+                order: maxOrder + 1,
             })
             .returning();
         revalidatePath("/admin/books");
@@ -373,18 +380,26 @@ export async function createBook(data: { title: string; description?: string | n
     }
 }
 
-export async function updateBook(id: number, data: { title?: string; description?: string | null }) {
+export async function updateBook(id: number, data: { title?: string; description?: string | null; order?: number }) {
     await requireAdmin();
 
     try {
+        const updateData: { title?: string; description?: string | null; order?: number; updatedAt: Date } = {
+            updatedAt: new Date(),
+        };
+        if (data.title !== undefined) {
+            updateData.title = data.title.trim();
+        }
+        if (data.description !== undefined) {
+            updateData.description = data.description?.trim() || null;
+        }
+        if (data.order !== undefined) {
+            updateData.order = data.order;
+        }
+
         await db
             .update(books)
-            .set({
-                ...data,
-                title: data.title?.trim(),
-                description: data.description?.trim() || null,
-                updatedAt: new Date(),
-            })
+            .set(updateData)
             .where(eq(books.id, id));
         revalidatePath("/admin/books");
         revalidatePath(`/admin/books/${id}/units`);
@@ -392,6 +407,31 @@ export async function updateBook(id: number, data: { title?: string; description
     } catch (error) {
         console.error("Failed to update book:", error);
         throw new Error("Failed to update book");
+    }
+}
+
+export async function updateBookOrder(bookIds: number[]) {
+    await requireAdmin();
+
+    try {
+        // Update order for all books in the provided order
+        // Using Promise.all since Neon HTTP may not support transactions
+        await Promise.all(
+            bookIds.map((bookId, index) =>
+                db
+                    .update(books)
+                    .set({
+                        order: index,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(books.id, bookId))
+            )
+        );
+        revalidatePath("/admin/books");
+        revalidatePath("/admin");
+    } catch (error) {
+        console.error("Failed to update book order:", error);
+        throw new Error("Failed to update book order");
     }
 }
 
@@ -450,12 +490,19 @@ export async function createUnit(bookId: number, data: { title: string; order?: 
             throw new Error("Book not found");
         }
 
+        // Get the max order value for this book to set the new unit's order
+        const maxOrderResult = await db
+            .select({ maxOrder: sql<number>`COALESCE(MAX(${units.order}), -1)` })
+            .from(units)
+            .where(eq(units.bookId, bookId));
+        const maxOrder = maxOrderResult[0]?.maxOrder ?? -1;
+
         const [newUnit] = await db
             .insert(units)
             .values({
                 bookId,
                 title: data.title.trim(),
-                order: data.order ?? 0,
+                order: data.order ?? maxOrder + 1,
             })
             .returning();
         revalidatePath(`/admin/books/${bookId}/units`);
@@ -495,6 +542,38 @@ export async function updateUnit(id: number, data: { title?: string; order?: num
     } catch (error) {
         console.error("Failed to update unit:", error);
         throw new Error("Failed to update unit");
+    }
+}
+
+export async function updateUnitOrder(unitIds: number[]) {
+    await requireAdmin();
+
+    try {
+        // Update order for all units in the provided order
+        // Using Promise.all since Neon HTTP may not support transactions
+        await Promise.all(
+            unitIds.map((unitId, index) =>
+                db
+                    .update(units)
+                    .set({
+                        order: index,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(units.id, unitId))
+            )
+        );
+        
+        // Get bookId from first unit to revalidate
+        if (unitIds.length > 0) {
+            const [unit] = await db.select({ bookId: units.bookId }).from(units).where(eq(units.id, unitIds[0])).limit(1);
+            if (unit) {
+                revalidatePath(`/admin/books/${unit.bookId}/units`);
+            }
+        }
+        revalidatePath("/admin");
+    } catch (error) {
+        console.error("Failed to update unit order:", error);
+        throw new Error("Failed to update unit order");
     }
 }
 
@@ -556,13 +635,20 @@ export async function createLesson(unitId: number, data: { title: string; type: 
             throw new Error("Unit not found");
         }
 
+        // Get the max order value for this unit to set the new lesson's order
+        const maxOrderResult = await db
+            .select({ maxOrder: sql<number>`COALESCE(MAX(${lessons.order}), -1)` })
+            .from(lessons)
+            .where(eq(lessons.unitId, unitId));
+        const maxOrder = maxOrderResult[0]?.maxOrder ?? -1;
+
         const [newLesson] = await db
             .insert(lessons)
             .values({
                 unitId,
                 title: data.title.trim(),
                 type: data.type.trim(),
-                order: data.order ?? 0,
+                order: data.order ?? maxOrder + 1,
             })
             .returning();
         revalidatePath(`/admin/units/${unitId}/lessons`);
@@ -605,6 +691,38 @@ export async function updateLesson(id: number, data: { title?: string; type?: st
     } catch (error) {
         console.error("Failed to update lesson:", error);
         throw new Error("Failed to update lesson");
+    }
+}
+
+export async function updateLessonOrder(lessonIds: number[]) {
+    await requireAdmin();
+
+    try {
+        // Update order for all lessons in the provided order
+        // Using Promise.all since Neon HTTP may not support transactions
+        await Promise.all(
+            lessonIds.map((lessonId, index) =>
+                db
+                    .update(lessons)
+                    .set({
+                        order: index,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(lessons.id, lessonId))
+            )
+        );
+        
+        // Get unitId from first lesson to revalidate
+        if (lessonIds.length > 0) {
+            const [lesson] = await db.select({ unitId: lessons.unitId }).from(lessons).where(eq(lessons.id, lessonIds[0])).limit(1);
+            if (lesson) {
+                revalidatePath(`/admin/units/${lesson.unitId}/lessons`);
+            }
+        }
+        revalidatePath("/admin");
+    } catch (error) {
+        console.error("Failed to update lesson order:", error);
+        throw new Error("Failed to update lesson order");
     }
 }
 
@@ -653,13 +771,20 @@ export async function addVocabularyWord(lessonId: number, data: { arabic: string
             throw new Error("Lesson is not a vocabulary lesson");
         }
 
+        // Get the max order value for this lesson to set the new word's order
+        const maxOrderResult = await db
+            .select({ maxOrder: sql<number>`COALESCE(MAX(${vocabularyWords.order}), -1)` })
+            .from(vocabularyWords)
+            .where(eq(vocabularyWords.lessonId, lessonId));
+        const maxOrder = maxOrderResult[0]?.maxOrder ?? -1;
+
         const [newWord] = await db
             .insert(vocabularyWords)
             .values({
                 lessonId,
                 arabic: data.arabic.trim(),
                 english: data.english.trim(),
-                order: data.order ?? 0,
+                order: data.order ?? maxOrder + 1,
             })
             .returning();
         revalidatePath(`/admin/lessons/${lessonId}/vocabulary`);
@@ -699,6 +824,37 @@ export async function updateVocabularyWord(id: number, data: { arabic?: string; 
     } catch (error) {
         console.error("Failed to update vocabulary word:", error);
         throw new Error("Failed to update vocabulary word");
+    }
+}
+
+export async function updateVocabularyOrder(wordIds: number[]) {
+    await requireAdmin();
+
+    try {
+        // Update order for all vocabulary words in the provided order
+        // Using Promise.all since Neon HTTP may not support transactions
+        await Promise.all(
+            wordIds.map((wordId, index) =>
+                db
+                    .update(vocabularyWords)
+                    .set({
+                        order: index,
+                    })
+                    .where(eq(vocabularyWords.id, wordId))
+            )
+        );
+        
+        // Get lessonId from first word to revalidate
+        if (wordIds.length > 0) {
+            const [word] = await db.select({ lessonId: vocabularyWords.lessonId }).from(vocabularyWords).where(eq(vocabularyWords.id, wordIds[0])).limit(1);
+            if (word) {
+                revalidatePath(`/admin/lessons/${word.lessonId}/vocabulary`);
+            }
+        }
+        revalidatePath("/admin");
+    } catch (error) {
+        console.error("Failed to update vocabulary order:", error);
+        throw new Error("Failed to update vocabulary order");
     }
 }
 

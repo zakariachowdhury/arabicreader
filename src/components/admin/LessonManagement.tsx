@@ -2,9 +2,165 @@
 
 import { useState, useTransition } from "react";
 import { Lesson } from "@/db/schema";
-import { createLesson, updateLesson, deleteLesson } from "@/app/admin/actions";
-import { Edit2, Trash2, Save, X, Plus, BookOpen } from "lucide-react";
+import { createLesson, updateLesson, deleteLesson, updateLessonOrder } from "@/app/admin/actions";
+import { Edit2, Trash2, Save, X, Plus, BookOpen, GripVertical } from "lucide-react";
 import Link from "next/link";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+function SortableLessonRow({ lesson, editingId, editData, isPending, onEdit, onCancel, onSave, onDelete, setEditData }: {
+    lesson: Lesson;
+    editingId: number | null;
+    editData: { title: string; type: string; order: number } | null;
+    isPending: boolean;
+    onEdit: (lesson: Lesson) => void;
+    onCancel: () => void;
+    onSave: (lessonId: number) => void;
+    onDelete: (lessonId: number) => void;
+    setEditData: (data: { title: string; type: string; order: number } | null) => void;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: lesson.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <tr
+            ref={setNodeRef}
+            style={style}
+            className={`hover:bg-slate-50 transition-colors ${isDragging ? "bg-slate-100" : ""}`}
+        >
+            <td className="px-6 py-4 w-12">
+                <button
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 p-1"
+                    title="Drag to reorder"
+                >
+                    <GripVertical className="w-5 h-5" />
+                </button>
+            </td>
+            <td className="px-6 py-4">
+                {editingId === lesson.id ? (
+                    <input
+                        type="text"
+                        value={editData?.title || ""}
+                        onChange={(e) => setEditData({ ...editData!, title: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                ) : (
+                    <div className="font-medium text-slate-900">
+                        {lesson.type === "vocabulary" ? (
+                            <Link
+                                href={`/admin/lessons/${lesson.id}/vocabulary`}
+                                className="text-blue-600 hover:text-blue-700 hover:underline"
+                            >
+                                {lesson.title}
+                            </Link>
+                        ) : (
+                            lesson.title
+                        )}
+                    </div>
+                )}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap">
+                {editingId === lesson.id ? (
+                    <select
+                        value={editData?.type || "vocabulary"}
+                        onChange={(e) => setEditData({ ...editData!, type: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="vocabulary">Vocabulary</option>
+                        <option value="reading">Reading</option>
+                        <option value="grammar">Grammar</option>
+                        <option value="exercise">Exercise</option>
+                    </select>
+                ) : (
+                    <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 capitalize">
+                        {lesson.type}
+                    </span>
+                )}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                {new Date(lesson.createdAt).toLocaleDateString()}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-right">
+                {editingId === lesson.id ? (
+                    <div className="flex items-center justify-end gap-2">
+                        <button
+                            onClick={() => onSave(lesson.id)}
+                            disabled={isPending}
+                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Save"
+                        >
+                            <Save className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={onCancel}
+                            disabled={isPending}
+                            className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                            title="Cancel"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-end gap-2">
+                        {lesson.type === "vocabulary" && (
+                            <Link
+                                href={`/admin/lessons/${lesson.id}/vocabulary`}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Manage Vocabulary"
+                            >
+                                <BookOpen className="w-4 h-4" />
+                            </Link>
+                        )}
+                        <button
+                            onClick={() => onEdit(lesson)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit"
+                        >
+                            <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => onDelete(lesson.id)}
+                            disabled={isPending}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
+            </td>
+        </tr>
+    );
+}
 
 export function LessonManagement({ initialLessons, unitId, unitTitle }: { initialLessons: Lesson[]; unitId: number; unitTitle: string }) {
     const [lessons, setLessons] = useState(initialLessons);
@@ -13,6 +169,13 @@ export function LessonManagement({ initialLessons, unitId, unitTitle }: { initia
     const [isCreating, setIsCreating] = useState(false);
     const [newLesson, setNewLesson] = useState({ title: "", type: "vocabulary", order: lessons.length });
     const [isPending, startTransition] = useTransition();
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
     const handleEdit = (lesson: Lesson) => {
         setEditingId(lesson.id);
@@ -93,6 +256,30 @@ export function LessonManagement({ initialLessons, unitId, unitTitle }: { initia
         });
     };
 
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            const oldIndex = lessons.findIndex((lesson) => lesson.id === active.id);
+            const newIndex = lessons.findIndex((lesson) => lesson.id === over.id);
+
+            const newLessons = arrayMove(lessons, oldIndex, newIndex);
+            setLessons(newLessons);
+
+            // Update order in database
+            startTransition(async () => {
+                try {
+                    await updateLessonOrder(newLessons.map((l) => l.id));
+                } catch (error) {
+                    console.error("Failed to update lesson order:", error);
+                    alert("Failed to update lesson order. Please try again.");
+                    // Revert on error
+                    setLessons(lessons);
+                }
+            });
+        }
+    };
+
     return (
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
@@ -138,16 +325,6 @@ export function LessonManagement({ initialLessons, unitId, unitTitle }: { initia
                                 <option value="exercise">Exercise</option>
                             </select>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Order</label>
-                            <input
-                                type="number"
-                                value={newLesson.order}
-                                onChange={(e) => setNewLesson({ ...newLesson, order: parseInt(e.target.value) || 0 })}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                min="0"
-                            />
-                        </div>
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={handleCreate}
@@ -177,129 +354,41 @@ export function LessonManagement({ initialLessons, unitId, unitTitle }: { initia
                         <p className="text-slate-500">No lessons yet. Create your first lesson to get started.</p>
                     </div>
                 ) : (
-                    <table className="w-full">
-                        <thead className="bg-slate-50">
-                            <tr>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Order</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Title</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Created</th>
-                                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {lessons.map((lesson) => (
-                                <tr key={lesson.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {editingId === lesson.id ? (
-                                            <input
-                                                type="number"
-                                                value={editData?.order ?? 0}
-                                                onChange={(e) => setEditData({ ...editData!, order: parseInt(e.target.value) || 0 })}
-                                                className="w-20 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                min="0"
-                                            />
-                                        ) : (
-                                            <div className="text-slate-600 font-medium">{lesson.order}</div>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        {editingId === lesson.id ? (
-                                            <input
-                                                type="text"
-                                                value={editData?.title || ""}
-                                                onChange={(e) => setEditData({ ...editData!, title: e.target.value })}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                        ) : (
-                                            <div className="font-medium text-slate-900">
-                                                {lesson.type === "vocabulary" ? (
-                                                    <Link
-                                                        href={`/admin/lessons/${lesson.id}/vocabulary`}
-                                                        className="text-blue-600 hover:text-blue-700 hover:underline"
-                                                    >
-                                                        {lesson.title}
-                                                    </Link>
-                                                ) : (
-                                                    lesson.title
-                                                )}
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {editingId === lesson.id ? (
-                                            <select
-                                                value={editData?.type || "vocabulary"}
-                                                onChange={(e) => setEditData({ ...editData!, type: e.target.value })}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            >
-                                                <option value="vocabulary">Vocabulary</option>
-                                                <option value="reading">Reading</option>
-                                                <option value="grammar">Grammar</option>
-                                                <option value="exercise">Exercise</option>
-                                            </select>
-                                        ) : (
-                                            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 capitalize">
-                                                {lesson.type}
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                                        {new Date(lesson.createdAt).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                                        {editingId === lesson.id ? (
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => handleSave(lesson.id)}
-                                                    disabled={isPending}
-                                                    className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
-                                                    title="Save"
-                                                >
-                                                    <Save className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={handleCancel}
-                                                    disabled={isPending}
-                                                    className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                                                    title="Cancel"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center justify-end gap-2">
-                                                {lesson.type === "vocabulary" && (
-                                                    <Link
-                                                        href={`/admin/lessons/${lesson.id}/vocabulary`}
-                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                        title="Manage Vocabulary"
-                                                    >
-                                                        <BookOpen className="w-4 h-4" />
-                                                    </Link>
-                                                )}
-                                                <button
-                                                    onClick={() => handleEdit(lesson)}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(lesson.id)}
-                                                    disabled={isPending}
-                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </td>
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <table className="w-full">
+                            <thead className="bg-slate-50">
+                                <tr>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider w-12"></th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Title</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Created</th>
+                                    <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                <SortableContext items={lessons.map(l => l.id)} strategy={verticalListSortingStrategy}>
+                                    {lessons.map((lesson) => (
+                                        <SortableLessonRow
+                                            key={lesson.id}
+                                            lesson={lesson}
+                                            editingId={editingId}
+                                            editData={editData}
+                                            isPending={isPending}
+                                            onEdit={handleEdit}
+                                            onCancel={handleCancel}
+                                            onSave={handleSave}
+                                            onDelete={handleDelete}
+                                            setEditData={setEditData}
+                                        />
+                                    ))}
+                                </SortableContext>
+                            </tbody>
+                        </table>
+                    </DndContext>
                 )}
             </div>
         </div>

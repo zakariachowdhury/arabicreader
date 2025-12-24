@@ -2223,7 +2223,7 @@ export async function getBooks() {
         return await db
             .select()
             .from(books)
-            .orderBy(asc(books.title));
+            .orderBy(asc(books.order), asc(books.id));
     } catch (error) {
         console.error("Failed to fetch books:", error);
         return [];
@@ -2236,7 +2236,7 @@ export async function getBooksWithStats() {
         const allBooks = await db
             .select()
             .from(books)
-            .orderBy(asc(books.title));
+            .orderBy(asc(books.order), asc(books.id));
 
         const booksWithStats = await Promise.all(
             allBooks.map(async (book) => {
