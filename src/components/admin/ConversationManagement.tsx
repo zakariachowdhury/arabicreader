@@ -719,7 +719,7 @@ export function ConversationManagement({ initialSentences, lessonId, lessonTitle
                 setParsedSentences(data.sentences);
                 setDuplicates(data.duplicates || []);
                 // Select all sentences by default
-                setSelectedIndices(new Set(data.sentences.map((_, index) => index)));
+                setSelectedIndices(new Set(data.sentences.map((_: unknown, index: number) => index)));
                 setShowParsedSentences(true);
                 setUploadProgress(`Successfully extracted ${data.sentences.length} sentence${data.sentences.length !== 1 ? 's' : ''} from the image.`);
             } else {
@@ -743,7 +743,7 @@ export function ConversationManagement({ initialSentences, lessonId, lessonTitle
         if (!parsedSentences || parsedSentences.length === 0) return;
 
         // Only add selected sentences
-        const selectedSentences = parsedSentences.filter((_, index) => selectedIndices.has(index));
+        const selectedSentences = parsedSentences.filter((_: unknown, index: number) => selectedIndices.has(index));
         if (selectedSentences.length === 0) {
             alert("Please select at least one sentence to add.");
             return;
@@ -792,7 +792,7 @@ export function ConversationManagement({ initialSentences, lessonId, lessonTitle
             setSelectedIndices(new Set());
         } else {
             // Select all
-            setSelectedIndices(new Set(parsedSentences.map((_, index) => index)));
+            setSelectedIndices(new Set(parsedSentences.map((_: unknown, index: number) => index)));
         }
     };
 
