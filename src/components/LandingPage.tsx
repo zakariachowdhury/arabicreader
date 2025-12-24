@@ -1,7 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BookOpen, GraduationCap, Languages, Sparkles, MessageSquare, Zap } from "lucide-react";
+import { ArrowRight, Sparkles, MessageSquare, Zap } from "lucide-react";
 import { getBooksWithStats } from "@/app/actions";
+import { BooksSection } from "@/components/BooksSection";
 
 export async function LandingPage() {
     const books = await getBooksWithStats();
@@ -104,60 +105,7 @@ export async function LandingPage() {
                         </p>
                     </div>
 
-                    {books.length === 0 ? (
-                        <div className="text-center py-12">
-                            <BookOpen className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-                            <p className="text-slate-500 text-lg">No books available yet.</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {books.map((book) => (
-                                <div
-                                    key={book.id}
-                                    className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 hover:shadow-xl transition-all hover:border-blue-200"
-                                >
-                                    <div className="flex items-center gap-4 mb-4">
-                                        <div className="p-4 bg-blue-100 rounded-xl">
-                                            <BookOpen className="w-8 h-8 text-blue-600" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <h3 className="text-2xl font-bold text-slate-900">{book.title}</h3>
-                                        </div>
-                                    </div>
-                                    
-                                    {book.description && (
-                                        <p className="text-sm text-slate-600 mb-6 line-clamp-3">
-                                            {book.description}
-                                        </p>
-                                    )}
-
-                                    <div className="grid grid-cols-3 gap-4 pt-6 border-t border-slate-100">
-                                        <div className="text-center">
-                                            <div className="flex items-center justify-center gap-2 mb-2">
-                                                <BookOpen className="w-4 h-4 text-blue-600" />
-                                                <span className="text-2xl font-bold text-slate-900">{book.stats.units}</span>
-                                            </div>
-                                            <p className="text-xs text-slate-500">Units</p>
-                                        </div>
-                                        <div className="text-center">
-                                            <div className="flex items-center justify-center gap-2 mb-2">
-                                                <GraduationCap className="w-4 h-4 text-purple-600" />
-                                                <span className="text-2xl font-bold text-slate-900">{book.stats.lessons}</span>
-                                            </div>
-                                            <p className="text-xs text-slate-500">Lessons</p>
-                                        </div>
-                                        <div className="text-center">
-                                            <div className="flex items-center justify-center gap-2 mb-2">
-                                                <Languages className="w-4 h-4 text-emerald-600" />
-                                                <span className="text-2xl font-bold text-slate-900">{book.stats.vocabularyWords}</span>
-                                            </div>
-                                            <p className="text-xs text-slate-500">Words</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    <BooksSection books={books} />
                 </div>
             </section>
 

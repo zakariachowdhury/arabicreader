@@ -22,6 +22,8 @@ export async function getAllUsers() {
                 isAdmin: user.isAdmin,
                 aiEnabled: user.aiEnabled,
                 defaultGroupId: user.defaultGroupId,
+                arabicFontSizeMultiplier: user.arabicFontSizeMultiplier,
+                englishFontSizeMultiplier: user.englishFontSizeMultiplier,
                 createdAt: user.createdAt,
                 updatedAt: user.updatedAt,
             })
