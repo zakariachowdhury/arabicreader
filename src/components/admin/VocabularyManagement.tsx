@@ -6,6 +6,7 @@ import { addVocabularyWord, updateVocabularyWord, deleteVocabularyWord, bulkAddV
 import { getAvailableModelsForUsersAction, getDefaultModelAction } from "@/app/actions";
 import { Edit2, Trash2, Save, X, Plus, Upload, Loader2, CheckCircle2, GripVertical, Info, Sparkles, Play, Volume2 } from "lucide-react";
 import { DeleteConfirmation } from "./DeleteConfirmation";
+import { useArabicFontSize } from "@/contexts/ArabicFontSizeContext";
 import {
     DndContext,
     closestCenter,
@@ -88,6 +89,7 @@ function VocabularyRow({ word, editingId, editData, isPending, deletingId, onEdi
     playingAudio: string | null;
     setPlayingAudio: (key: string | null) => void;
 }) {
+    const { getArabicFontSize } = useArabicFontSize();
     const handlePlayArabic = () => {
         const audioKey = `arabic-${word.id}`;
         if (playingAudio === audioKey) {
@@ -135,7 +137,7 @@ function VocabularyRow({ word, editingId, editData, isPending, deletingId, onEdi
                     />
                 ) : (
                     <div className="flex items-center gap-2" dir="rtl">
-                        <div className="font-medium text-slate-900 text-lg flex-1">{word.arabic}</div>
+                        <div className="font-medium text-slate-900 flex-1" style={{ fontSize: getArabicFontSize("text-lg") }}>{word.arabic}</div>
                         <button
                             onClick={handlePlayArabic}
                             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -245,6 +247,7 @@ function SortableVocabularyRow({ word, editingId, editData, isPending, deletingI
     playingAudio: string | null;
     setPlayingAudio: (key: string | null) => void;
 }) {
+    const { getArabicFontSize } = useArabicFontSize();
     const handlePlayArabic = () => {
         const audioKey = `arabic-${word.id}`;
         if (playingAudio === audioKey) {
@@ -315,7 +318,7 @@ function SortableVocabularyRow({ word, editingId, editData, isPending, deletingI
                     />
                 ) : (
                     <div className="flex items-center gap-2" dir="rtl">
-                        <div className="font-medium text-slate-900 text-lg flex-1">{word.arabic}</div>
+                        <div className="font-medium text-slate-900 flex-1" style={{ fontSize: getArabicFontSize("text-lg") }}>{word.arabic}</div>
                         <button
                             onClick={handlePlayArabic}
                             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

@@ -36,6 +36,20 @@
       "when": 1734940300000,
       "tag": "0004_add_books_order",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1734940400000,
+      "tag": "0005_add_arabic_font_size",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1734940500000,
+      "tag": "0006_add_english_font_size",
+      "breakpoints": true
     }
   ]
 }

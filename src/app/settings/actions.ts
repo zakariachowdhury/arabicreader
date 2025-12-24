@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { settings } from "@/db/schema";
+import { settings, user } from "@/db/schema";
 import { requireAdmin } from "@/lib/admin";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -130,6 +130,108 @@ export async function updateOpenRouterConfig(data: { apiKey: string; supportedMo
     } catch (error) {
         console.error("Failed to update OpenRouter config:", error);
         const errorMessage = error instanceof Error ? error.message : "Failed to update OpenRouter configuration";
+        return {
+            error: {
+                message: errorMessage,
+            },
+        };
+    }
+}
+
+export async function getArabicFontSizeMultiplier(): Promise<number> {
+    const session = await getSession();
+    if (!session) {
+        return 1.5; // Default value
+    }
+
+    try {
+        const [userData] = await db
+            .select({ arabicFontSizeMultiplier: user.arabicFontSizeMultiplier })
+            .from(user)
+            .where(eq(user.id, session.user.id))
+            .limit(1);
+
+        return userData?.arabicFontSizeMultiplier ?? 1.5;
+    } catch (error) {
+        console.error("Failed to fetch Arabic font size multiplier:", error);
+        return 1.5; // Default value on error
+    }
+}
+
+export async function updateArabicFontSizeMultiplier(multiplier: number) {
+    const session = await getSession();
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+
+    // Clamp between 0.5 and 5
+    const clamped = Math.max(0.5, Math.min(5, multiplier));
+
+    try {
+        await db
+            .update(user)
+            .set({
+                arabicFontSizeMultiplier: clamped,
+                updatedAt: new Date(),
+            })
+            .where(eq(user.id, session.user.id));
+
+        revalidatePath("/settings");
+        return { error: null };
+    } catch (error) {
+        console.error("Failed to update Arabic font size multiplier:", error);
+        const errorMessage = error instanceof Error ? error.message : "Failed to update Arabic font size";
+        return {
+            error: {
+                message: errorMessage,
+            },
+        };
+    }
+}
+
+export async function getEnglishFontSizeMultiplier(): Promise<number> {
+    const session = await getSession();
+    if (!session) {
+        return 1.0; // Default value
+    }
+
+    try {
+        const [userData] = await db
+            .select({ englishFontSizeMultiplier: user.englishFontSizeMultiplier })
+            .from(user)
+            .where(eq(user.id, session.user.id))
+            .limit(1);
+
+        return userData?.englishFontSizeMultiplier ?? 1.0;
+    } catch (error) {
+        console.error("Failed to fetch English font size multiplier:", error);
+        return 1.0; // Default value on error
+    }
+}
+
+export async function updateEnglishFontSizeMultiplier(multiplier: number) {
+    const session = await getSession();
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+
+    // Clamp between 0.5 and 5
+    const clamped = Math.max(0.5, Math.min(5, multiplier));
+
+    try {
+        await db
+            .update(user)
+            .set({
+                englishFontSizeMultiplier: clamped,
+                updatedAt: new Date(),
+            })
+            .where(eq(user.id, session.user.id));
+
+        revalidatePath("/settings");
+        return { error: null };
+    } catch (error) {
+        console.error("Failed to update English font size multiplier:", error);
+        const errorMessage = error instanceof Error ? error.message : "Failed to update English font size";
         return {
             error: {
                 message: errorMessage,

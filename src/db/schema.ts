@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, integer, real } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 export const user = pgTable("user", {
@@ -10,6 +10,8 @@ export const user = pgTable("user", {
     isAdmin: boolean("is_admin").default(false).notNull(),
     aiEnabled: boolean("ai_enabled").default(true).notNull(),
     defaultGroupId: integer("default_group_id"),
+    arabicFontSizeMultiplier: real("arabic_font_size_multiplier").default(1.5).notNull(),
+    englishFontSizeMultiplier: real("english_font_size_multiplier").default(1.0).notNull(),
     createdAt: timestamp("created_at").notNull(),
     updatedAt: timestamp("updated_at").notNull(),
 });

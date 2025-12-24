@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition, useRef } from "react";
 import { VocabularyWord, UserProgress } from "@/db/schema";
 import { updateUserProgress } from "@/app/actions";
 import { BookOpen, ChevronLeft, ChevronRight, RotateCcw, CheckCircle2, XCircle, Eye, Volume2, VolumeX, Volume1, VolumeOff } from "lucide-react";
+import { useArabicFontSize } from "@/contexts/ArabicFontSizeContext";
 
 type Mode = "learn" | "practice" | "test";
 
@@ -35,6 +36,7 @@ function generateMultipleChoiceOptions(
 }
 
 export function VocabularyFlashcards({ words, initialProgress, lessonId, initialMode = "learn" }: VocabularyFlashcardsProps) {
+    const { getArabicFontSize, getEnglishFontSize } = useArabicFontSize();
     const [mode, setMode] = useState<Mode>(initialMode);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
@@ -524,7 +526,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                     )}
                                 </button>
                             </div>
-                            <p className="text-4xl font-bold text-slate-900" dir="rtl">
+                            <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-4xl") }}>
                                 {currentWord.arabic}
                             </p>
                         </div>
@@ -543,7 +545,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                     )}
                                 </button>
                             </div>
-                            <p className="text-3xl font-semibold text-slate-700">
+                            <p className="font-semibold text-slate-700" style={{ fontSize: getEnglishFontSize("text-3xl") }}>
                                 {currentWord.english}
                             </p>
                         </div>
@@ -591,7 +593,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                         )}
                                     </button>
                                 </div>
-                                <p className="text-4xl font-bold text-slate-900" dir="rtl">
+                                <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-4xl") }}>
                                     {currentWord.arabic}
                                 </p>
                                 <p className="text-sm text-slate-400 mt-4">Click to reveal answer</p>
@@ -618,7 +620,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                         )}
                                     </button>
                                 </div>
-                                <p className="text-3xl font-semibold text-slate-700">
+                                <p className="font-semibold text-slate-700" style={{ fontSize: getEnglishFontSize("text-3xl") }}>
                                     {currentWord.english}
                                 </p>
                                 <div className="flex gap-4 justify-center mt-6">
@@ -698,7 +700,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                                         )}
                                                     </button>
                                                 </div>
-                                                <p className="text-3xl font-bold text-slate-900" dir="rtl">
+                                                <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-3xl") }}>
                                                     {currentWord.arabic}
                                                 </p>
                                             </div>
@@ -841,7 +843,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                         )}
                                         <div className="flex-1">
                                             <div className="flex items-center gap-3 mb-2">
-                                                <p className="text-2xl font-bold text-slate-900" dir="rtl">
+                                                <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-2xl") }}>
                                                     {word.arabic}
                                                 </p>
                                                 <button

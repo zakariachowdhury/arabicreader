@@ -3,11 +3,197 @@
 import { useState, useEffect, Suspense } from "react";
 import { deleteUser, useSession, updateUser, changePassword } from "@/lib/auth-client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Loader2, Trash2, Shield, ArrowLeft, CheckCircle2, User, Lock, Settings as SettingsIcon } from "lucide-react";
+import { AlertTriangle, Loader2, Trash2, Shield, ArrowLeft, CheckCircle2, User, Lock, Settings as SettingsIcon, Type } from "lucide-react";
 import Link from "next/link";
 import { checkIsAdmin, getOpenRouterConfig, updateOpenRouterConfig } from "./actions";
+import { useArabicFontSize } from "@/contexts/ArabicFontSizeContext";
 
-type SettingsTab = "profile" | "password" | "danger" | "admin";
+type SettingsTab = "profile" | "display" | "password" | "danger" | "admin";
+
+function DisplaySettings() {
+    const { arabicFontSizeMultiplier, englishFontSizeMultiplier, setArabicFontSizeMultiplier, setEnglishFontSizeMultiplier, getArabicFontSize, getEnglishFontSize, isLoading } = useArabicFontSize();
+    const [saveError, setSaveError] = useState<string | null>(null);
+    // Local state for immediate visual feedback while dragging
+    const [localArabicValue, setLocalArabicValue] = useState(arabicFontSizeMultiplier);
+    const [localEnglishValue, setLocalEnglishValue] = useState(englishFontSizeMultiplier);
+
+    // Sync local state when context values change (e.g., after loading from DB)
+    useEffect(() => {
+        setLocalArabicValue(arabicFontSizeMultiplier);
+    }, [arabicFontSizeMultiplier]);
+
+    useEffect(() => {
+        setLocalEnglishValue(englishFontSizeMultiplier);
+    }, [englishFontSizeMultiplier]);
+
+    const handleArabicChange = (value: number) => {
+        // Update local state immediately for visual feedback
+        setLocalArabicValue(value);
+    };
+
+    const handleArabicSave = async (value: number) => {
+        try {
+            await setArabicFontSizeMultiplier(value);
+            setSaveError(null);
+        } catch (error) {
+            setSaveError(error instanceof Error ? error.message : "Failed to save Arabic font size");
+            // Revert local state on error
+            setLocalArabicValue(arabicFontSizeMultiplier);
+        }
+    };
+
+    const handleEnglishChange = (value: number) => {
+        // Update local state immediately for visual feedback
+        setLocalEnglishValue(value);
+    };
+
+    const handleEnglishSave = async (value: number) => {
+        try {
+            await setEnglishFontSizeMultiplier(value);
+            setSaveError(null);
+        } catch (error) {
+            setSaveError(error instanceof Error ? error.message : "Failed to save English font size");
+            // Revert local state on error
+            setLocalEnglishValue(englishFontSizeMultiplier);
+        }
+    };
+
+    // Helper function to calculate font size for preview using local values
+    const getPreviewFontSize = (baseSize: string, multiplier: number): string => {
+        const sizeMap: Record<string, number> = {
+            "text-xs": 0.75,
+            "text-sm": 0.875,
+            "text-base": 1,
+            "text-lg": 1.125,
+            "text-xl": 1.25,
+            "text-2xl": 1.5,
+            "text-3xl": 1.875,
+            "text-4xl": 2.25,
+            "text-5xl": 3,
+            "text-6xl": 3.75,
+            "text-7xl": 4.5,
+        };
+        const baseRem = sizeMap[baseSize] || 1;
+        return `${baseRem * multiplier}rem`;
+    };
+
+    return (
+        <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+            <div className="mb-6">
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">Display Settings</h2>
+                <p className="text-sm text-slate-500">Customize how Arabic text is displayed throughout the application.</p>
+            </div>
+
+            <div className="space-y-6">
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+                        Arabic Font Size Multiplier
+                    </label>
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                            <span className="text-sm text-slate-600 min-w-[60px]">0.5x</span>
+                            <input
+                                type="range"
+                                min="0.5"
+                                max="5"
+                                step="0.1"
+                                value={localArabicValue}
+                                onChange={(e) => handleArabicChange(parseFloat(e.target.value))}
+                                onMouseUp={(e) => handleArabicSave(parseFloat((e.target as HTMLInputElement).value))}
+                                onTouchEnd={(e) => handleArabicSave(parseFloat((e.target as HTMLInputElement).value))}
+                                disabled={isLoading}
+                                className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <span className="text-sm text-slate-600 min-w-[60px]">5.0x</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2">
+                            <span className="text-lg font-bold text-slate-900">
+                                {localArabicValue.toFixed(1)}x
+                            </span>
+                            <span className="text-sm text-slate-500">
+                                ({Math.round(localArabicValue * 100)}% of base size)
+                            </span>
+                        </div>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-4">
+                        Adjust the size multiplier for all Arabic text. Higher values make Arabic words larger. Default is 1.5x.
+                    </p>
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+                        English Font Size Multiplier
+                    </label>
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                            <span className="text-sm text-slate-600 min-w-[60px]">0.5x</span>
+                            <input
+                                type="range"
+                                min="0.5"
+                                max="5"
+                                step="0.1"
+                                value={localEnglishValue}
+                                onChange={(e) => handleEnglishChange(parseFloat(e.target.value))}
+                                onMouseUp={(e) => handleEnglishSave(parseFloat((e.target as HTMLInputElement).value))}
+                                onTouchEnd={(e) => handleEnglishSave(parseFloat((e.target as HTMLInputElement).value))}
+                                disabled={isLoading}
+                                className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <span className="text-sm text-slate-600 min-w-[60px]">5.0x</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2">
+                            <span className="text-lg font-bold text-slate-900">
+                                {localEnglishValue.toFixed(1)}x
+                            </span>
+                            <span className="text-sm text-slate-500">
+                                ({Math.round(localEnglishValue * 100)}% of base size)
+                            </span>
+                        </div>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-4">
+                        Adjust the size multiplier for all English text. Higher values make English words larger. Default is 1.0x.
+                    </p>
+                </div>
+
+                <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-blue-700 mb-4">
+                        Preview
+                    </label>
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-4">
+                                <span className="text-sm text-slate-600 min-w-[120px]">Arabic ({localArabicValue.toFixed(1)}x):</span>
+                                <div
+                                    className="flex-1 text-center p-4 bg-white rounded-lg border border-slate-200"
+                                    dir="rtl"
+                                    style={{ fontSize: getPreviewFontSize("text-3xl", localArabicValue) }}
+                                >
+                                    <span className="font-bold text-slate-900">اللغة العربية</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <span className="text-sm text-slate-600 min-w-[120px]">English ({localEnglishValue.toFixed(1)}x):</span>
+                                <div
+                                    className="flex-1 text-center p-4 bg-white rounded-lg border border-slate-200"
+                                    style={{ fontSize: getPreviewFontSize("text-3xl", localEnglishValue) }}
+                                >
+                                    <span className="font-semibold text-slate-700">English Translation</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {saveError && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-3">
+                        <AlertTriangle size={18} />
+                        <p>{saveError}</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 function SettingsContent() {
     const { data: session, isPending } = useSession();
@@ -226,6 +412,7 @@ function SettingsContent() {
 
     const sidebarItems = [
         { id: "profile" as SettingsTab, label: "Profile", icon: User },
+        { id: "display" as SettingsTab, label: "Display", icon: Type },
         { id: "password" as SettingsTab, label: "Password", icon: Lock },
         { id: "danger" as SettingsTab, label: "Danger Zone", icon: Trash2 },
         ...(isAdmin ? [{ id: "admin" as SettingsTab, label: "Admin Settings", icon: Shield }] : []),
@@ -331,6 +518,10 @@ function SettingsContent() {
                                 </div>
                             </form>
                         </div>
+                    )}
+
+                    {activeTab === "display" && (
+                        <DisplaySettings />
                     )}
 
                     {activeTab === "password" && (
