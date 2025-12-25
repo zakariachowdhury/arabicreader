@@ -38,7 +38,10 @@ function generateMultipleChoiceOptions(
 export function VocabularyFlashcards({ words, initialProgress, lessonId, initialMode = "learn" }: VocabularyFlashcardsProps) {
     const { getArabicFontSize, getEnglishFontSize } = useArabicFontSize();
     const [mode, setMode] = useState<Mode>(initialMode);
-    const [currentIndex, setCurrentIndex] = useState(0);
+    // Separate indices for each mode
+    const [learnIndex, setLearnIndex] = useState(0);
+    const [practiceIndex, setPracticeIndex] = useState(0);
+    const [testIndex, setTestIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
     const [testAnswers, setTestAnswers] = useState<Record<number, string>>({});
     const [testOptions, setTestOptions] = useState<Record<number, string[]>>({});
@@ -49,6 +52,8 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
     const [, startTransition] = useTransition();
     const [speaking, setSpeaking] = useState<{ arabic: boolean; english: boolean }>({ arabic: false, english: false });
     const autoAdvanceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    // Shuffled words for test mode (randomized once when entering test mode)
+    const [shuffledTestWords, setShuffledTestWords] = useState<VocabularyWord[]>([]);
     
     // Sound effects state with localStorage persistence
     const [soundEnabled, setSoundEnabled] = useState(() => {
@@ -59,6 +64,51 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
         return true;
     });
 
+    // Get current words array based on mode (shuffled for test, original for others)
+    const currentWords = mode === "test" && shuffledTestWords.length > 0 ? shuffledTestWords : words;
+    
+    // Get current index based on mode
+    const getCurrentIndex = () => {
+        switch (mode) {
+            case "learn":
+                return learnIndex;
+            case "practice":
+                return practiceIndex;
+            case "test":
+                return testIndex;
+            default:
+                return 0;
+        }
+    };
+    
+    const setCurrentIndex = (index: number) => {
+        switch (mode) {
+            case "learn":
+                setLearnIndex(index);
+                break;
+            case "practice":
+                setPracticeIndex(index);
+                break;
+            case "test":
+                setTestIndex(index);
+                break;
+        }
+    };
+    
+    const currentIndex = getCurrentIndex();
+    const currentWord = currentWords[currentIndex];
+    const currentProgress = currentWord ? progress[currentWord.id] : null;
+
+    // Shuffle words when entering test mode for the first time
+    useEffect(() => {
+        if (mode === "test" && shuffledTestWords.length === 0 && words.length > 0) {
+            // Create a shuffled copy of the words array
+            const shuffled = [...words].sort(() => Math.random() - 0.5);
+            setShuffledTestWords(shuffled);
+            setTestIndex(0); // Reset to first word in shuffled order
+        }
+    }, [mode, words, shuffledTestWords.length]);
+
     // Check for wordId in URL query parameters to jump to specific word
     useEffect(() => {
         if (typeof window !== "undefined") {
@@ -67,7 +117,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
             if (wordIdParam) {
                 const wordId = parseInt(wordIdParam);
                 if (!isNaN(wordId)) {
-                    const wordIndex = words.findIndex(w => w.id === wordId);
+                    const wordIndex = currentWords.findIndex(w => w.id === wordId);
                     if (wordIndex !== -1) {
                         setCurrentIndex(wordIndex);
                         // Clean up URL by removing the query parameter
@@ -77,41 +127,40 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                 }
             }
         }
-    }, [words]);
-
-    const currentWord = words[currentIndex];
-    const currentProgress = currentWord ? progress[currentWord.id] : null;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentWords]);
 
     // Generate multiple choice options when entering test mode
     useEffect(() => {
-        if (mode === "test" && words.length > 0 && Object.keys(testOptions).length === 0) {
+        if (mode === "test" && currentWords.length > 0 && Object.keys(testOptions).length === 0) {
             const options: Record<number, string[]> = {};
-            words.forEach(word => {
-                options[word.id] = generateMultipleChoiceOptions(word.english, words, word.id);
+            currentWords.forEach(word => {
+                options[word.id] = generateMultipleChoiceOptions(word.english, currentWords, word.id);
             });
             setTestOptions(options);
         }
-    }, [mode, words, testOptions]);
+    }, [mode, currentWords, testOptions]);
 
     useEffect(() => {
         // Mark word as seen when viewing in learn or practice mode
         if (currentWord && (mode === "learn" || mode === "practice") && !testSubmitted) {
             if (!currentProgress?.seen) {
+                const wordId = currentWord.id;
                 startTransition(async () => {
                     try {
-                        await updateUserProgress(currentWord.id, { seen: true });
+                        await updateUserProgress(wordId, { seen: true });
                         setProgress(prev => ({
                             ...prev,
-                            [currentWord.id]: {
-                                ...prev[currentWord.id],
-                                id: prev[currentWord.id]?.id || 0,
+                            [wordId]: {
+                                ...prev[wordId],
+                                id: prev[wordId]?.id || 0,
                                 userId: "",
-                                wordId: currentWord.id,
+                                wordId: wordId,
                                 seen: true,
-                                correctCount: prev[currentWord.id]?.correctCount || 0,
-                                incorrectCount: prev[currentWord.id]?.incorrectCount || 0,
+                                correctCount: prev[wordId]?.correctCount || 0,
+                                incorrectCount: prev[wordId]?.incorrectCount || 0,
                                 lastReviewedAt: new Date(),
-                                createdAt: prev[currentWord.id]?.createdAt || new Date(),
+                                createdAt: prev[wordId]?.createdAt || new Date(),
                                 updatedAt: new Date(),
                             } as UserProgress,
                         }));
@@ -121,7 +170,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                 });
             }
         }
-    }, [currentWord?.id, mode, testSubmitted]);
+    }, [currentWord, currentProgress?.seen, mode, testSubmitted, startTransition]);
 
     const handleNext = () => {
         // Clear auto-advance timeout if navigating manually
@@ -130,7 +179,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
             autoAdvanceTimeoutRef.current = null;
         }
         
-        if (currentIndex < words.length - 1) {
+        if (currentIndex < currentWords.length - 1) {
             setCurrentIndex(currentIndex + 1);
             setIsFlipped(false);
             // Stop any speaking when moving to next word
@@ -171,7 +220,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
         setAnsweredWords(prev => new Set(prev).add(wordId));
         
         // Check if answer is correct
-        const word = words.find(w => w.id === wordId);
+        const word = currentWords.find(w => w.id === wordId);
         const correct = word && answer === word.english;
         
         // Play sound effect
@@ -201,8 +250,8 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
         
         // Auto-advance to next word after 3 seconds
         autoAdvanceTimeoutRef.current = setTimeout(() => {
-            setCurrentIndex(prevIndex => {
-                if (prevIndex < words.length - 1) {
+            setTestIndex(prevIndex => {
+                if (prevIndex < currentWords.length - 1) {
                     return prevIndex + 1;
                 } else {
                     // All questions answered, show results
@@ -224,8 +273,11 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
         setTestOptions({});
         setTestResults({});
         setTestSubmitted(false);
-        setCurrentIndex(0);
+        setTestIndex(0);
         setAnsweredWords(new Set());
+        // Reshuffle words for a new test
+        const shuffled = [...words].sort(() => Math.random() - 0.5);
+        setShuffledTestWords(shuffled);
     };
 
     const handlePracticeAnswer = (correct: boolean) => {
@@ -429,69 +481,132 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
     }
 
     const correctCount = Object.values(testResults).filter(r => r).length;
-    const totalWords = words.length;
 
     return (
         <div className="max-w-4xl mx-auto">
             {/* Mode Selector */}
-            <div className="mb-6 flex gap-2 justify-center">
-                <button
-                    onClick={() => {
-                        setMode("learn");
-                        setIsFlipped(false);
-                        setTestSubmitted(false);
-                    }}
-                    className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                        mode === "learn"
-                            ? "bg-blue-600 text-white"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                >
-                    Learn
-                </button>
-                <button
-                    onClick={() => {
-                        setMode("practice");
-                        setIsFlipped(false);
-                        setTestSubmitted(false);
-                    }}
-                    className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                        mode === "practice"
-                            ? "bg-blue-600 text-white"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                >
-                    Practice
-                </button>
-                <button
-                    onClick={() => {
-                        setMode("test");
-                        setIsFlipped(false);
-                        setTestSubmitted(false);
-                        setTestAnswers({});
-                        setTestOptions({});
-                        setTestResults({});
-                    }}
-                    className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                        mode === "test"
-                            ? "bg-blue-600 text-white"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                >
-                    Test
-                </button>
+            <div className="mb-8">
+                <div className="inline-flex gap-1 p-1 bg-slate-100 rounded-xl mx-auto shadow-sm">
+                    <button
+                        onClick={() => {
+                            setMode("learn");
+                            setIsFlipped(false);
+                            setTestSubmitted(false);
+                            // Index is already tracked separately, no need to reset
+                        }}
+                        className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                            mode === "learn"
+                                ? "bg-white text-blue-600 shadow-md"
+                                : "text-slate-600 hover:text-slate-900"
+                        }`}
+                    >
+                        Learn
+                    </button>
+                    <button
+                        onClick={() => {
+                            setMode("practice");
+                            setIsFlipped(false);
+                            setTestSubmitted(false);
+                            // Index is already tracked separately, no need to reset
+                        }}
+                        className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                            mode === "practice"
+                                ? "bg-white text-blue-600 shadow-md"
+                                : "text-slate-600 hover:text-slate-900"
+                        }`}
+                    >
+                        Practice
+                    </button>
+                    <button
+                        onClick={() => {
+                            setMode("test");
+                            setIsFlipped(false);
+                            // If starting a fresh test (no answers yet), shuffle words and reset
+                            if (Object.keys(testAnswers).length === 0) {
+                                setTestAnswers({});
+                                setTestOptions({});
+                                setTestResults({});
+                                setAnsweredWords(new Set());
+                                setTestSubmitted(false);
+                                // Shuffle words every time entering test mode fresh
+                                if (words.length > 0) {
+                                    const shuffled = [...words].sort(() => Math.random() - 0.5);
+                                    setShuffledTestWords(shuffled);
+                                }
+                                setTestIndex(0);
+                            } else {
+                                // If test is in progress, just restore the position (already tracked separately)
+                                setTestSubmitted(false);
+                            }
+                        }}
+                        className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                            mode === "test"
+                                ? "bg-white text-blue-600 shadow-md"
+                                : "text-slate-600 hover:text-slate-900"
+                        }`}
+                    >
+                        Test
+                    </button>
+                </div>
             </div>
 
             {/* Progress Stats */}
-            <div className="mb-6 text-center">
-                <p className="text-slate-600">
-                    Word {currentIndex + 1} of {words.length}
-                </p>
-                {currentProgress && (
-                    <p className="text-sm text-slate-500 mt-1">
-                        Correct: {currentProgress.correctCount} | Incorrect: {currentProgress.incorrectCount}
-                    </p>
-                )}
+            <div className="mb-8">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex-1">
+                            <p className="text-sm font-medium text-slate-600 mb-1">Progress</p>
+                            <p className="text-2xl font-bold text-slate-900">
+                                {mode === "test" ? "Question" : "Word"} <span className="text-blue-600">{currentIndex + 1}</span> of {currentWords.length}
+                            </p>
+                        </div>
+                        {(currentProgress || mode === "test") && (
+                            <div className="text-right">
+                                <p className="text-sm font-medium text-slate-600 mb-1">Score</p>
+                                <div className="flex items-center gap-4">
+                                    {mode === "test" ? (
+                                        <>
+                                            <div className="flex items-center gap-1.5">
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                                <span className="text-lg font-bold text-emerald-600">
+                                                    {Object.values(testResults).filter(r => r === true).length}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <XCircle className="w-4 h-4 text-red-600" />
+                                                <span className="text-lg font-bold text-red-600">
+                                                    {Object.values(testResults).filter(r => r === false).length}
+                                                </span>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center gap-1.5">
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                                <span className="text-lg font-bold text-emerald-600">
+                                                    {currentProgress?.correctCount || 0}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <XCircle className="w-4 h-4 text-red-600" />
+                                                <span className="text-lg font-bold text-red-600">
+                                                    {currentProgress?.incorrectCount || 0}
+                                                </span>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                        <div
+                            className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${((currentIndex + 1) / currentWords.length) * 100}%` }}
+                        />
+                    </div>
+                </div>
             </div>
 
             {/* Learn Mode */}
@@ -683,7 +798,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                         </div>
                                         <div className="mb-4">
                                             <div className="flex items-center justify-between mb-2">
-                                                <p className="text-sm text-slate-500">Question {currentIndex + 1} of {words.length}</p>
+                                                <p className="text-sm text-slate-500">Question {currentIndex + 1} of {currentWords.length}</p>
                                             </div>
                                             <div className="flex flex-col items-center mb-6">
                                                 <div className="flex items-center justify-center gap-3 mb-4">
@@ -795,7 +910,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                     </button>
                                     <button
                                         onClick={handleNext}
-                                        disabled={currentIndex === words.length - 1}
+                                        disabled={currentIndex === currentWords.length - 1}
                                         className="px-6 py-3 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                     >
                                         Next
@@ -804,7 +919,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                 </div>
                             )}
                             {/* Show submit button when all questions are answered */}
-                            {answeredWords.size === words.length && (
+                            {answeredWords.size === currentWords.length && (
                                 <div className="flex justify-center">
                                     <button
                                         onClick={() => setTestSubmitted(true)}
@@ -820,13 +935,13 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                             <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 text-center">
                                 <h3 className="text-2xl font-bold text-slate-900 mb-2">Test Results</h3>
                                 <p className="text-4xl font-extrabold text-blue-600 mb-4">
-                                    {correctCount} / {totalWords}
+                                    {correctCount} / {currentWords.length}
                                 </p>
                                 <p className="text-slate-600">
-                                    {Math.round((correctCount / totalWords) * 100)}% Correct
+                                    {Math.round((correctCount / currentWords.length) * 100)}% Correct
                                 </p>
                             </div>
-                            {words.map((word) => (
+                            {currentWords.map((word) => (
                                 <div
                                     key={word.id}
                                     className={`bg-white rounded-2xl shadow-lg border p-6 ${
@@ -917,7 +1032,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                     )}
                     <button
                         onClick={handleNext}
-                        disabled={currentIndex === words.length - 1}
+                        disabled={currentIndex === currentWords.length - 1}
                         className="px-6 py-3 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         Next
