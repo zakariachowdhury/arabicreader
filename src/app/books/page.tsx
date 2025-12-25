@@ -5,6 +5,7 @@ import { getBooks, getAllBooksProgress } from "../actions";
 import Link from "next/link";
 import { BookOpen, BarChart3 } from "lucide-react";
 import { ProgressBar, ProgressBadge } from "@/components/ProgressIndicator";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 export default async function BooksPage() {
     const session = await auth.api.getSession({
@@ -20,9 +21,16 @@ export default async function BooksPage() {
         getAllBooksProgress(),
     ]);
 
+    const breadcrumbItems = [
+        { label: "Books", href: "/books" },
+    ];
+
     return (
         <main className="py-12 px-4 sm:px-6 lg:px-8 font-sans bg-white min-h-screen">
             <div className="max-w-7xl mx-auto">
+                <div className="mb-6">
+                    <Breadcrumbs items={breadcrumbItems} />
+                </div>
                 <header className="mb-10">
                     <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl mb-2">
                         Books

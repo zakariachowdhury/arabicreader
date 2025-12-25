@@ -3,8 +3,9 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getBookById, getUnitsByBook, getBookProgress, getUnitProgress } from "../../actions";
 import Link from "next/link";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { ProgressBar, ProgressBadge } from "@/components/ProgressIndicator";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 export default async function BookDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const session = await auth.api.getSession({
@@ -40,17 +41,16 @@ export default async function BookDetailPage({ params }: { params: Promise<{ id:
         }))
     );
 
+    const breadcrumbItems = [
+        { label: "Books", href: "/books" },
+        { label: book.title, href: `/books/${bookId}` },
+    ];
+
     return (
         <main className="py-12 px-4 sm:px-6 lg:px-8 font-sans bg-white min-h-screen">
             <div className="max-w-7xl mx-auto">
                 <div className="mb-6">
-                    <Link
-                        href="/books"
-                        className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors mb-4"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        Back to Books
-                    </Link>
+                    <Breadcrumbs items={breadcrumbItems} />
                 </div>
                 <header className="mb-10">
                     <div className="flex items-center justify-between mb-4">

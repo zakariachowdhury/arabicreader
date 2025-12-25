@@ -3,8 +3,9 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getUnitById, getLessonsByUnit, getBookById, getUnitProgress, getLessonProgress } from "../../actions";
 import Link from "next/link";
-import { ArrowLeft, BookOpen, GraduationCap } from "lucide-react";
+import { BookOpen, GraduationCap } from "lucide-react";
 import { ProgressBar, ProgressBadge } from "@/components/ProgressIndicator";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 export default async function UnitDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const session = await auth.api.getSession({
@@ -42,17 +43,17 @@ export default async function UnitDetailPage({ params }: { params: Promise<{ id:
         }))
     );
 
+    const breadcrumbItems = [
+        { label: "Books", href: "/books" },
+        ...(book ? [{ label: book.title, href: `/books/${book.id}` }] : []),
+        { label: unit.title, href: `/units/${unitId}` },
+    ];
+
     return (
         <main className="py-12 px-4 sm:px-6 lg:px-8 font-sans bg-white min-h-screen">
             <div className="max-w-7xl mx-auto">
                 <div className="mb-6">
-                    <Link
-                        href={book ? `/books/${book.id}` : "/books"}
-                        className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors mb-4"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        {book ? `Back to ${book.title}` : "Back to Books"}
-                    </Link>
+                    <Breadcrumbs items={breadcrumbItems} />
                 </div>
                 <header className="mb-10">
                     <div className="flex items-center justify-between mb-4">
@@ -63,9 +64,6 @@ export default async function UnitDetailPage({ params }: { params: Promise<{ id:
                             <ProgressBadge progress={unitProgress} />
                         )}
                     </div>
-                    {book && (
-                        <p className="text-slate-500 mb-4">From {book.title}</p>
-                    )}
                     {unitProgress.totalWords > 0 && (
                         <div className="mt-4">
                             <ProgressBar progress={unitProgress} />

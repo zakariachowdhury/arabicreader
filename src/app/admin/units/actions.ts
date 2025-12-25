@@ -1,2 +1,2 @@
-export { getUnitsByBook, getUnitById, createUnit, updateUnit, deleteUnit } from "../actions";
+export { getUnitsByBook, getUnitById, createUnit, updateUnit, deleteUnit, getBookById } from "../actions";
 

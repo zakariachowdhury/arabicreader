@@ -179,7 +179,7 @@ function SortableUnitRow({ unit, editingId, editData, isPending, deletingId, onE
     );
 }
 
-export function UnitManagement({ initialUnits, bookId, bookTitle }: { initialUnits: Unit[]; bookId: number; bookTitle: string }) {
+export function UnitManagement({ initialUnits, bookId }: { initialUnits: Unit[]; bookId: number }) {
     const [units, setUnits] = useState(initialUnits);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editData, setEditData] = useState<{ title: string; order: number } | null>(null);
@@ -322,7 +322,7 @@ export function UnitManagement({ initialUnits, bookId, bookTitle }: { initialUni
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900">Units: {bookTitle}</h2>
+                    <h2 className="text-2xl font-bold text-slate-900">Units</h2>
                     <p className="text-slate-500 mt-1">Manage units for this book</p>
                 </div>
                 {!isCreating && (

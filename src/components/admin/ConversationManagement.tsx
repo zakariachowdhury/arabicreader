@@ -438,7 +438,7 @@ function SortableConversationRow({ sentence, editingId, editData, isPending, del
     );
 }
 
-export function ConversationManagement({ initialSentences, lessonId, lessonTitle }: { initialSentences: ConversationSentence[]; lessonId: number; lessonTitle: string }) {
+export function ConversationManagement({ initialSentences, lessonId, lessonTitle, categoryName }: { initialSentences: ConversationSentence[]; lessonId: number; lessonTitle: string; categoryName?: string }) {
     const [sentences, setSentences] = useState(initialSentences);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editData, setEditData] = useState<{ arabic: string; english: string | null; order: number; isTitle: boolean } | null>(null);
@@ -842,7 +842,7 @@ export function ConversationManagement({ initialSentences, lessonId, lessonTitle
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900">Conversation: {lessonTitle}</h2>
+                    <h2 className="text-2xl font-bold text-slate-900">{categoryName ? categoryName.charAt(0).toUpperCase() + categoryName.slice(1) : lessonTitle}</h2>
                     <p className="text-slate-500 mt-1">Manage Arabic conversation sentences with optional English translations</p>
                 </div>
                 {!isCreating && !showParsedSentences && (

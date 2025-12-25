@@ -412,7 +412,7 @@ function SortableVocabularyRow({ word, editingId, editData, isPending, deletingI
     );
 }
 
-export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { initialWords: VocabularyWord[]; lessonId: number; lessonTitle: string }) {
+export function VocabularyManagement({ initialWords, lessonId, lessonTitle, categoryName }: { initialWords: VocabularyWord[]; lessonId: number; lessonTitle: string; categoryName?: string }) {
     const [words, setWords] = useState(initialWords);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editData, setEditData] = useState<{ arabic: string; english: string; order: number } | null>(null);
@@ -870,7 +870,7 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle }: { 
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900">Vocabulary: {lessonTitle}</h2>
+                    <h2 className="text-2xl font-bold text-slate-900">{categoryName ? categoryName.charAt(0).toUpperCase() + categoryName.slice(1) : lessonTitle}</h2>
                     <p className="text-slate-500 mt-1">Manage Arabic-English word pairs</p>
                 </div>
                 {!isCreating && !showParsedWords && (

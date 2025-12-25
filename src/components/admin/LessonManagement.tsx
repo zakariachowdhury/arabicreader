@@ -238,7 +238,7 @@ function SortableLessonRow({ lesson, editingId, editData, isPending, deletingId,
     );
 }
 
-export function LessonManagement({ initialLessons, unitId, unitTitle }: { initialLessons: Lesson[]; unitId: number; unitTitle: string }) {
+export function LessonManagement({ initialLessons, unitId }: { initialLessons: Lesson[]; unitId: number }) {
     const [lessons, setLessons] = useState(initialLessons);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editData, setEditData] = useState<{ title: string; type: string; order: number } | null>(null);
@@ -384,7 +384,7 @@ export function LessonManagement({ initialLessons, unitId, unitTitle }: { initia
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900">Lessons: {unitTitle}</h2>
+                    <h2 className="text-2xl font-bold text-slate-900">Lessons</h2>
                     <p className="text-slate-500 mt-1">Manage lessons for this unit</p>
                 </div>
                 {!isCreating && (

@@ -61,11 +61,6 @@ export default async function LearnLessonPage({ params }: { params: Promise<{ id
                             <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl mb-2">
                                 {lesson.title} - Learn
                             </h1>
-                            {book && unit && (
-                                <p className="text-slate-500">
-                                    {book.title} → {unit.title}
-                                </p>
-                            )}
                         </div>
                         <ResetProgressButton lessonId={lessonId} lessonTitle={lesson.title} />
                     </div>

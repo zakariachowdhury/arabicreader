@@ -15,6 +15,7 @@ import {
 } from "@/components/admin/ActivityCharts";
 import { BarChart3, TrendingUp, Users, Target } from "lucide-react";
 import { DateRangeFilter } from "@/components/admin/DateRangeFilter";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 export default async function AnalyticsPage({
     searchParams,
@@ -51,9 +52,17 @@ export default async function AnalyticsPage({
               testResults.length
             : 0;
 
+    const breadcrumbItems = [
+        { label: "Admin", href: "/admin" },
+        { label: "Analytics", href: "/admin/analytics" },
+    ];
+
     return (
         <main className="py-12 px-4 sm:px-6 lg:px-8 font-sans bg-white min-h-screen">
             <div className="max-w-7xl mx-auto">
+                <div className="mb-6">
+                    <Breadcrumbs items={breadcrumbItems} />
+                </div>
                 <header className="mb-10">
                     <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl mb-2">
                         Analytics Dashboard
