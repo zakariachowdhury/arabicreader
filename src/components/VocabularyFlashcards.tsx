@@ -56,13 +56,16 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
     const [shuffledTestWords, setShuffledTestWords] = useState<VocabularyWord[]>([]);
     
     // Sound effects state with localStorage persistence
-    const [soundEnabled, setSoundEnabled] = useState(() => {
-        if (typeof window !== "undefined") {
-            const saved = localStorage.getItem("test-sound-enabled");
-            return saved !== null ? saved === "true" : true; // Default to enabled
+    // Initialize to true to match server render, then sync with localStorage in useEffect
+    const [soundEnabled, setSoundEnabled] = useState(true);
+    
+    // Sync sound state from localStorage after mount (client-side only)
+    useEffect(() => {
+        const saved = localStorage.getItem("test-sound-enabled");
+        if (saved !== null) {
+            setSoundEnabled(saved === "true");
         }
-        return true;
-    });
+    }, []);
 
     // Get current words array based on mode (shuffled for test, original for others)
     const currentWords = mode === "test" && shuffledTestWords.length > 0 ? shuffledTestWords : words;

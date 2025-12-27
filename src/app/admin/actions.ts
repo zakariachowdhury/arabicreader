@@ -324,6 +324,86 @@ export async function setGlobalAIEnabled(enabled: boolean) {
     }
 }
 
+export async function getChatHistoryLimit(): Promise<number> {
+    await requireAdmin();
+
+    try {
+        const result = await db
+            .select()
+            .from(settings)
+            .where(eq(settings.key, "ai.chat_history_limit"))
+            .limit(1);
+
+        if (result.length === 0) {
+            // Initialize the setting to 10 (default) by default
+            const session = await auth.api.getSession({
+                headers: await headers(),
+            });
+
+            if (session) {
+                await db.insert(settings).values({
+                    key: "ai.chat_history_limit",
+                    value: JSON.stringify(10),
+                    updatedBy: session.user.id,
+                });
+            }
+            return 10;
+        }
+
+        const limit = JSON.parse(result[0].value);
+        return typeof limit === "number" && limit > 0 ? limit : 10;
+    } catch (error) {
+        console.error("Failed to fetch chat history limit:", error);
+        return 10; // Default to 10 on error
+    }
+}
+
+export async function setChatHistoryLimit(limit: number) {
+    await requireAdmin();
+
+    if (limit < 1 || limit > 100) {
+        throw new Error("Chat history limit must be between 1 and 100");
+    }
+
+    try {
+        const session = await auth.api.getSession({
+            headers: await headers(),
+        });
+
+        if (!session) {
+            throw new Error("Unauthorized");
+        }
+
+        const existing = await db
+            .select()
+            .from(settings)
+            .where(eq(settings.key, "ai.chat_history_limit"))
+            .limit(1);
+
+        if (existing.length > 0) {
+            await db
+                .update(settings)
+                .set({
+                    value: JSON.stringify(limit),
+                    updatedAt: new Date(),
+                    updatedBy: session.user.id,
+                })
+                .where(eq(settings.key, "ai.chat_history_limit"));
+        } else {
+            await db.insert(settings).values({
+                key: "ai.chat_history_limit",
+                value: JSON.stringify(limit),
+                updatedBy: session.user.id,
+            });
+        }
+
+        revalidatePath("/admin");
+    } catch (error) {
+        console.error("Failed to update chat history limit:", error);
+        throw new Error("Failed to update chat history limit");
+    }
+}
+
 // Book Management Actions
 export async function getAllBooks() {
     await requireAdmin();

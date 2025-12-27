@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin";
-import { getAdminStats, getGlobalAIEnabled } from "./actions";
+import { getAdminStats, getGlobalAIEnabled, getChatHistoryLimit } from "./actions";
 import Link from "next/link";
 import { Users, CheckSquare, UserCheck, BarChart3, Palette, BookOpen, TrendingUp, Library, BookText, GraduationCap, FileText } from "lucide-react";
 import { GlobalAIToggle } from "@/components/admin/GlobalAIToggle";
+import { ChatHistoryLimitSetting } from "@/components/admin/ChatHistoryLimitSetting";
 
 export default async function AdminPage() {
     const admin = await isAdmin();
@@ -14,6 +15,7 @@ export default async function AdminPage() {
 
     const stats = await getAdminStats();
     const globalAIEnabled = await getGlobalAIEnabled();
+    const chatHistoryLimit = await getChatHistoryLimit();
 
     return (
         <main className="py-12 px-4 sm:px-6 lg:px-8 font-sans bg-slate-50 min-h-screen">
@@ -122,8 +124,9 @@ export default async function AdminPage() {
                 </div>
 
                 {/* Global AI Settings */}
-                <div className="mb-12">
+                <div className="mb-12 space-y-6">
                     <GlobalAIToggle initialEnabled={globalAIEnabled} />
+                    <ChatHistoryLimitSetting initialLimit={chatHistoryLimit} />
                 </div>
 
                 {/* Secondary Management Tools */}

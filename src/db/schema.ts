@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, integer, real } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, integer, real, jsonb } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
     id: text("id").primaryKey(),
@@ -162,6 +162,27 @@ export const userProgress = pgTable("user_progress", {
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const chatSessions = pgTable("chat_sessions", {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+        .notNull()
+        .references(() => user.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const chatMessages = pgTable("chat_messages", {
+    id: serial("id").primaryKey(),
+    sessionId: integer("session_id")
+        .notNull()
+        .references(() => chatSessions.id, { onDelete: "cascade" }),
+    role: text("role").notNull(), // "user" | "assistant"
+    content: text("content").notNull(),
+    navigationLinks: jsonb("navigation_links").$type<Array<{ label: string; url: string }>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export type Todo = typeof todos.$inferSelect;
 export type NewTodo = typeof todos.$inferInsert;
 export type Group = typeof groups.$inferSelect;
@@ -183,3 +204,7 @@ export type ConversationSentence = typeof conversationSentences.$inferSelect;
 export type NewConversationSentence = typeof conversationSentences.$inferInsert;
 export type UserProgress = typeof userProgress.$inferSelect;
 export type NewUserProgress = typeof userProgress.$inferInsert;
+export type ChatSession = typeof chatSessions.$inferSelect;
+export type NewChatSession = typeof chatSessions.$inferInsert;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type NewChatMessage = typeof chatMessages.$inferInsert;

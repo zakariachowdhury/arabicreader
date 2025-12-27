@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Github, Settings, Shield, BookOpen, CheckSquare, BarChart3 } from "lucide-react";
+import { CheckCircle2, Github, Settings, Shield, BookOpen, CheckSquare, BarChart3, MessageSquare } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { SignOutButton } from "./SignOutButton";
@@ -41,6 +41,13 @@ export async function Navbar() {
                                     title="Arabic Reader"
                                 >
                                     <BookOpen size={20} />
+                                </Link>
+                                <Link
+                                    href="/chat"
+                                    className="p-2.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition-all"
+                                    title="AI Chat"
+                                >
+                                    <MessageSquare size={20} />
                                 </Link>
                                 <Link
                                     href="/tasks"

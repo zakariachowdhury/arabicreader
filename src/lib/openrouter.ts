@@ -113,6 +113,60 @@ export async function callOpenRouter(
 }
 
 /**
+ * Create a streaming request to OpenRouter API
+ * Returns a ReadableStream that yields chunks of the response
+ */
+export async function callOpenRouterStream(
+    model: string,
+    messages: OpenRouterMessage[],
+    options?: {
+        temperature?: number;
+        max_tokens?: number;
+        top_p?: number;
+    }
+): Promise<ReadableStream<Uint8Array>> {
+    const config = await getOpenRouterConfig();
+
+    if (!config || !config.apiKey) {
+        throw new Error("OpenRouter API key not configured. Please contact an administrator.");
+    }
+
+    // Validate model is in supported list
+    if (config.supportedModels.length > 0 && !config.supportedModels.includes(model)) {
+        throw new Error(`Model "${model}" is not in the list of supported models.`);
+    }
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${config.apiKey}`,
+            "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+            "X-Title": process.env.NEXT_PUBLIC_APP_NAME || "TaskFlow",
+        },
+        body: JSON.stringify({
+            model,
+            messages,
+            stream: true,
+            ...options,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+            errorData.error?.message || `OpenRouter API error: ${response.status} ${response.statusText}`
+        );
+    }
+
+    if (!response.body) {
+        throw new Error("Response body is null");
+    }
+
+    return response.body;
+}
+
+/**
  * Get the default model from settings
  */
 export async function getDefaultModel(): Promise<string | null> {
@@ -170,4 +224,3 @@ export async function getAvailableModelsForUsers(): Promise<string[]> {
         return [];
     }
 }
-

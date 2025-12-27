@@ -1,65 +1,58 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { processAILearningRequest, getAvailableModelsForUsersAction, getDefaultModelAction, isAIAvailableForUser, type ProcessAILearningResult } from "@/app/actions";
-import { Send, Loader2, Bot, User, AlertCircle, CheckCircle2, Sparkles, X, Minimize2, Maximize2, Settings } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Send, Loader2, Bot, User, AlertCircle, CheckCircle2, Sparkles, X, Minimize2, Maximize2, Settings, Plus } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useSession } from "@/lib/auth-client";
-
-interface ChatMessage {
-    role: "user" | "assistant";
-    content: string;
-    timestamp: Date;
-    result?: ProcessAILearningResult;
-    navigationLinks?: Array<{ label: string; url: string }>;
-}
+import { useChat, type ChatMessage } from "@/hooks/useChat";
 
 export function FloatingAIChat() {
     const [isOpen, setIsOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
     const [showModelSettings, setShowModelSettings] = useState(false);
     const [showTooltip, setShowTooltip] = useState(false);
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [input, setInput] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
-    const [selectedModel, setSelectedModel] = useState<string>("");
-    const [availableModels, setAvailableModels] = useState<string[]>([]);
-    const [isLoadingModels, setIsLoadingModels] = useState(true);
-    const [isAvailable, setIsAvailable] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const tooltipRef = useRef<HTMLDivElement>(null);
-    const router = useRouter();
     const { data: session } = useSession();
     const isInitialMount = useRef(true);
 
-    // Restore persisted chat state from localStorage on mount
+    // Use shared chat hook for all backend logic
+    const {
+        messages,
+        input,
+        isLoading,
+        selectedModel,
+        availableModels,
+        isLoadingModels,
+        isAvailable,
+        error,
+        currentSessionId,
+        isLoadingSession,
+        lastMessageSentTime,
+        setInput,
+        handleSubmit,
+        handleNewChat,
+        loadSession,
+        setSelectedModel,
+        setError,
+    } = useChat({
+        autoLoadLastSession: true,
+    });
+
+    // Restore persisted chat state from localStorage on mount (only UI state, not messages)
     useEffect(() => {
         if (typeof window === "undefined") return;
 
         try {
             const persistedIsOpen = localStorage.getItem("ai-chat-is-open");
             const persistedIsMinimized = localStorage.getItem("ai-chat-is-minimized");
-            const persistedMessages = localStorage.getItem("ai-chat-messages");
-            const persistedSelectedModel = localStorage.getItem("ai-chat-selected-model");
 
             if (persistedIsOpen === "true") {
                 setIsOpen(true);
             }
             if (persistedIsMinimized === "true") {
                 setIsMinimized(true);
-            }
-            if (persistedMessages) {
-                const parsedMessages = JSON.parse(persistedMessages);
-                // Convert timestamp strings back to Date objects
-                const messagesWithDates = parsedMessages.map((msg: any) => ({
-                    ...msg,
-                    timestamp: new Date(msg.timestamp),
-                }));
-                setMessages(messagesWithDates);
-            }
-            if (persistedSelectedModel) {
-                setSelectedModel(persistedSelectedModel);
             }
         } catch (err) {
             console.error("Failed to restore chat state:", err);
@@ -89,75 +82,6 @@ export function FloatingAIChat() {
         }
     }, [isMinimized]);
 
-    // Persist messages to localStorage
-    useEffect(() => {
-        if (typeof window === "undefined" || isInitialMount.current) return;
-        if (messages.length > 0) {
-            // Convert Date objects to ISO strings for storage
-            const messagesForStorage = messages.map(msg => ({
-                ...msg,
-                timestamp: msg.timestamp.toISOString(),
-            }));
-            localStorage.setItem("ai-chat-messages", JSON.stringify(messagesForStorage));
-        } else {
-            localStorage.removeItem("ai-chat-messages");
-        }
-    }, [messages]);
-
-    // Persist selectedModel to localStorage
-    useEffect(() => {
-        if (typeof window === "undefined" || isInitialMount.current) return;
-        if (selectedModel) {
-            localStorage.setItem("ai-chat-selected-model", selectedModel);
-        }
-    }, [selectedModel]);
-
-    // Check if AI is available for user and load models
-    useEffect(() => {
-        async function checkAvailabilityAndLoadModels() {
-            try {
-                setIsLoadingModels(true);
-                
-                // Check if AI is available for the current user (checks global, user, and OpenRouter settings)
-                const available = await isAIAvailableForUser();
-                setIsAvailable(available);
-                
-                if (!available) {
-                    setIsLoadingModels(false);
-                    return;
-                }
-                
-                // Load available models
-                const models = await getAvailableModelsForUsersAction();
-                setAvailableModels(models);
-                
-                if (models.length > 0) {
-                    // Only set default model if we don't have a persisted one
-                    const persistedModel = localStorage.getItem("ai-chat-selected-model");
-                    if (persistedModel && models.includes(persistedModel)) {
-                        setSelectedModel(persistedModel);
-                    } else {
-                        const defaultModel = await getDefaultModelAction();
-                        if (defaultModel && models.includes(defaultModel)) {
-                            setSelectedModel(defaultModel);
-                        } else {
-                            setSelectedModel(models[0]);
-                        }
-                    }
-                } else {
-                    setIsAvailable(false);
-                }
-            } catch (err) {
-                console.error("Failed to load models:", err);
-                setError("Failed to load available models");
-                setIsAvailable(false);
-            } finally {
-                setIsLoadingModels(false);
-            }
-        }
-        checkAvailabilityAndLoadModels();
-    }, []);
-
     // Show tooltip once after login if user hasn't seen it
     useEffect(() => {
         if (session?.user && isAvailable && !isLoadingModels && !isOpen) {
@@ -180,133 +104,76 @@ export function FloatingAIChat() {
         }
     }, [isOpen]);
 
+    // Reload current session when chat opens to get latest messages (only once when opening)
+    // But don't reload if we just started a new chat (currentSessionId is null)
+    useEffect(() => {
+        if (isOpen && !isLoadingModels && isAvailable && currentSessionId && !isLoadingSession) {
+            // Reload the current session to get any new messages when first opening
+            loadSession(currentSessionId);
+        }
+        // Only run when isOpen changes from false to true, not on every render
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
+
+    // Reload session when chat-updated event is received (from chat page)
+    // Only reload if we're not currently processing a message (to avoid reloading our own messages)
+    useEffect(() => {
+        if (!isOpen || !currentSessionId || isLoadingSession) return;
+
+        let reloadTimeout: NodeJS.Timeout | null = null;
+        let lastReloadTime = 0;
+        const DEBOUNCE_MS = 1000; // Don't reload more than once per second
+
+        const handleChatUpdate = (e: CustomEvent) => {
+            const eventSessionId = e.detail?.sessionId;
+            const now = Date.now();
+            
+            // Skip reload if we just sent a message ourselves (within last 2 seconds)
+            // This prevents reloading when we're the ones who triggered the event
+            if (now - lastMessageSentTime.current < 2000) {
+                return;
+            }
+            
+            // Skip reload if we're currently loading/processing (we already have the latest state)
+            if (isLoading) {
+                return;
+            }
+            
+            // Only reload if it's the current session and we haven't reloaded recently
+            if ((eventSessionId === currentSessionId || !eventSessionId)) {
+                if (now - lastReloadTime < DEBOUNCE_MS) {
+                    return; // Skip if we just reloaded
+                }
+                lastReloadTime = now;
+
+                // Clear any pending reload
+                if (reloadTimeout) {
+                    clearTimeout(reloadTimeout);
+                }
+
+                // Debounce the reload slightly to avoid rapid successive reloads
+                reloadTimeout = setTimeout(() => {
+                    loadSession(currentSessionId);
+                }, 200);
+            }
+        };
+
+        window.addEventListener("chat-updated" as any, handleChatUpdate as EventListener);
+
+        return () => {
+            if (reloadTimeout) {
+                clearTimeout(reloadTimeout);
+            }
+            window.removeEventListener("chat-updated" as any, handleChatUpdate as EventListener);
+        };
+    }, [isOpen, currentSessionId, isLoadingSession, loadSession, isLoading, lastMessageSentTime]);
+
     // Scroll to bottom when messages change
     useEffect(() => {
         if (isOpen && !isMinimized) {
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages, isOpen, isMinimized]);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        
-        if (!input.trim() || !selectedModel || isLoading) return;
-
-        const userPrompt = input.trim();
-        const userMessage: ChatMessage = {
-            role: "user",
-            content: userPrompt,
-            timestamp: new Date(),
-        };
-
-        // Build full conversation history with context (navigation links, results, etc.)
-        const conversationHistory = messages.map(msg => ({
-            role: msg.role,
-            content: msg.content,
-            navigationLinks: msg.navigationLinks,
-            result: msg.result ? {
-                actions: msg.result.actions,
-            } : undefined,
-        }));
-
-        setMessages(prev => [...prev, userMessage]);
-        setInput("");
-        setIsLoading(true);
-        setError(null);
-
-        let result: ProcessAILearningResult | null = null;
-        try {
-            result = await processAILearningRequest(userPrompt, selectedModel, conversationHistory);
-            
-            const assistantMessage: ChatMessage = {
-                role: "assistant",
-                content: result.message || "Request processed",
-                timestamp: new Date(),
-                result,
-                navigationLinks: result.navigationLinks,
-            };
-
-            setMessages(prev => [...prev, assistantMessage]);
-            
-            router.refresh();
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "Failed to process request";
-            setError(errorMessage);
-            
-            const userRequest = userPrompt.length > 0 ? userPrompt : "your request";
-            
-            const assistantMessage: ChatMessage = {
-                role: "assistant",
-                content: result?.message || `Error processing "${userRequest}": ${errorMessage}`,
-                timestamp: new Date(),
-                result: result || {
-                    success: false,
-                    message: errorMessage,
-                    error: errorMessage,
-                },
-            };
-
-            setMessages(prev => [...prev, assistantMessage]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const renderActionContent = (result: ProcessAILearningResult) => {
-        if (!result.actions || result.actions.length === 0) {
-            return null;
-        }
-
-        return (
-            <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5">
-                {result.actions.map((action, idx) => {
-                    if (action.type === "search" && action.data?.searchResults) {
-                        return (
-                            <div key={idx} className="text-[10px]">
-                                <p className="font-semibold text-slate-700 mb-0.5">Search Results:</p>
-                                <ul className="list-disc list-inside space-y-0.5 text-slate-600">
-                                    {action.data.searchResults.slice(0, 3).map((item, i) => (
-                                        <li key={i} className="truncate">{item.title}</li>
-                                    ))}
-                                    {action.data.searchResults.length > 3 && (
-                                        <li className="text-slate-400">...{action.data.searchResults.length - 3} more</li>
-                                    )}
-                                </ul>
-                            </div>
-                        );
-                    }
-                    if (action.type === "test" && action.data?.testQuestions) {
-                        return (
-                            <div key={idx} className="text-[10px]">
-                                <p className="font-semibold text-slate-700 mb-0.5">Test ({action.data.testQuestions.length} questions):</p>
-                                <ul className="list-disc list-inside space-y-0.5 text-slate-600">
-                                    {action.data.testQuestions.slice(0, 2).map((q, i) => (
-                                        <li key={i} className="truncate">{q.question}</li>
-                                    ))}
-                                    {action.data.testQuestions.length > 2 && (
-                                        <li className="text-slate-400">...{action.data.testQuestions.length - 2} more</li>
-                                    )}
-                                </ul>
-                            </div>
-                        );
-                    }
-                    if (action.type === "practice" && action.data?.practiceSuggestions) {
-                        return (
-                            <div key={idx} className="text-[10px]">
-                                <p className="font-semibold text-slate-700 mb-0.5">Practice:</p>
-                                <ul className="list-disc list-inside space-y-0.5 text-slate-600">
-                                    {action.data.practiceSuggestions.map((suggestion, i) => (
-                                        <li key={i} className="break-words">{suggestion.description}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        );
-                    }
-                    return null;
-                })}
-            </div>
-        );
-    };
 
     // Don't show anything if user is not logged in, still loading, not available, or no models
     if (!session?.user || isLoadingModels || !isAvailable || availableModels.length === 0) {
@@ -389,14 +256,24 @@ export function FloatingAIChat() {
                         </div>
                         <div className="flex items-center gap-1 ml-2">
                             {!isMinimized && (
-                                <button
-                                    onClick={() => setShowModelSettings(true)}
-                                    className="p-1.5 text-white hover:bg-white/20 rounded transition-colors"
-                                    aria-label="Model Settings"
-                                    title="Select AI Model"
-                                >
-                                    <Settings className="w-4 h-4" />
-                                </button>
+                                <>
+                                    <button
+                                        onClick={handleNewChat}
+                                        className="p-1.5 text-white hover:bg-white/20 rounded transition-colors"
+                                        aria-label="New Chat"
+                                        title="Start New Chat"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => setShowModelSettings(true)}
+                                        className="p-1.5 text-white hover:bg-white/20 rounded transition-colors"
+                                        aria-label="Model Settings"
+                                        title="Select AI Model"
+                                    >
+                                        <Settings className="w-4 h-4" />
+                                    </button>
+                                </>
                             )}
                             <button
                                 onClick={() => setIsMinimized(!isMinimized)}
@@ -416,7 +293,6 @@ export function FloatingAIChat() {
                                     // Clear persisted state when user explicitly closes
                                     localStorage.removeItem("ai-chat-is-open");
                                     localStorage.removeItem("ai-chat-is-minimized");
-                                    localStorage.removeItem("ai-chat-messages");
                                 }}
                                 className="p-1.5 text-white hover:bg-white/20 rounded transition-colors"
                                 aria-label="Close"
@@ -499,14 +375,161 @@ export function FloatingAIChat() {
                                                         : "bg-white border border-slate-200 text-slate-900"
                                                 }`}
                                             >
-                                                <div className="text-xs whitespace-pre-wrap break-words leading-relaxed">{message.content}</div>
-                                                
-                                                {/* Show action content */}
-                                                {message.result && renderActionContent(message.result)}
+                                                <div className="text-xs break-words leading-relaxed">
+                                                    <ReactMarkdown
+                                                        remarkPlugins={[remarkGfm]}
+                                                        components={{
+                                                            // Style code blocks
+                                                            code: ({ node, className, children, ...props }) => {
+                                                                const isInline = !className;
+                                                                const isUser = message.role === "user";
+                                                                return isInline ? (
+                                                                    <code
+                                                                        className={`px-1 py-0.5 rounded text-[10px] font-mono ${
+                                                                            isUser
+                                                                                ? "bg-blue-700 text-blue-100"
+                                                                                : "bg-slate-100 text-slate-800"
+                                                                        }`}
+                                                                        {...props}
+                                                                    >
+                                                                        {children}
+                                                                    </code>
+                                                                ) : (
+                                                                    <code
+                                                                        className={`block p-2 rounded text-[10px] font-mono overflow-x-auto ${
+                                                                            isUser
+                                                                                ? "bg-blue-700/50 text-blue-100"
+                                                                                : "bg-slate-100 text-slate-800"
+                                                                        }`}
+                                                                        {...props}
+                                                                    >
+                                                                        {children}
+                                                                    </code>
+                                                                );
+                                                            },
+                                                            // Style pre blocks
+                                                            pre: ({ children }) => {
+                                                                return <pre className="my-1">{children}</pre>;
+                                                            },
+                                                            // Style links
+                                                            a: ({ href, children }) => {
+                                                                const isUser = message.role === "user";
+                                                                return (
+                                                                    <a
+                                                                        href={href}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className={`underline hover:no-underline ${
+                                                                            isUser
+                                                                                ? "text-blue-100 hover:text-white"
+                                                                                : "text-blue-600 hover:text-blue-700"
+                                                                        }`}
+                                                                    >
+                                                                        {children}
+                                                                    </a>
+                                                                );
+                                                            },
+                                                            // Style lists
+                                                            ul: ({ children }) => {
+                                                                const isUser = message.role === "user";
+                                                                return (
+                                                                    <ul className={`my-1 space-y-0.5 ${isUser ? "text-white" : "text-slate-900"}`}>
+                                                                        {children}
+                                                                    </ul>
+                                                                );
+                                                            },
+                                                            ol: ({ children }) => {
+                                                                const isUser = message.role === "user";
+                                                                return (
+                                                                    <ol className={`my-1 space-y-0.5 ${isUser ? "text-white" : "text-slate-900"}`}>
+                                                                        {children}
+                                                                    </ol>
+                                                                );
+                                                            },
+                                                            li: ({ children }) => {
+                                                                const isUser = message.role === "user";
+                                                                return (
+                                                                    <li className={`ml-3 ${isUser ? "text-white" : "text-slate-900"}`}>
+                                                                        {children}
+                                                                    </li>
+                                                                );
+                                                            },
+                                                            // Style headings
+                                                            h1: ({ children }) => {
+                                                                const isUser = message.role === "user";
+                                                                return (
+                                                                    <h1 className={`text-sm font-bold mt-2 mb-1 first:mt-0 ${isUser ? "text-white" : "text-slate-900"}`}>
+                                                                        {children}
+                                                                    </h1>
+                                                                );
+                                                            },
+                                                            h2: ({ children }) => {
+                                                                const isUser = message.role === "user";
+                                                                return (
+                                                                    <h2 className={`text-xs font-bold mt-2 mb-1 first:mt-0 ${isUser ? "text-white" : "text-slate-900"}`}>
+                                                                        {children}
+                                                                    </h2>
+                                                                );
+                                                            },
+                                                            h3: ({ children }) => {
+                                                                const isUser = message.role === "user";
+                                                                return (
+                                                                    <h3 className={`text-xs font-bold mt-1 mb-0.5 first:mt-0 ${isUser ? "text-white" : "text-slate-900"}`}>
+                                                                        {children}
+                                                                    </h3>
+                                                                );
+                                                            },
+                                                            // Style paragraphs
+                                                            p: ({ children }) => {
+                                                                const isUser = message.role === "user";
+                                                                return (
+                                                                    <p className={`my-1 first:mt-0 last:mb-0 ${isUser ? "text-white" : "text-slate-900"}`}>
+                                                                        {children}
+                                                                    </p>
+                                                                );
+                                                            },
+                                                            // Style blockquotes
+                                                            blockquote: ({ children }) => {
+                                                                const isUser = message.role === "user";
+                                                                return (
+                                                                    <blockquote
+                                                                        className={`my-1 pl-2 border-l-2 ${
+                                                                            isUser
+                                                                                ? "border-blue-400 text-blue-100"
+                                                                                : "border-slate-300 text-slate-700"
+                                                                        }`}
+                                                                    >
+                                                                        {children}
+                                                                    </blockquote>
+                                                                );
+                                                            },
+                                                            // Style strong/bold
+                                                            strong: ({ children }) => {
+                                                                const isUser = message.role === "user";
+                                                                return (
+                                                                    <strong className={`font-semibold ${isUser ? "text-white" : "text-slate-900"}`}>
+                                                                        {children}
+                                                                    </strong>
+                                                                );
+                                                            },
+                                                            // Style emphasis/italic
+                                                            em: ({ children }) => {
+                                                                const isUser = message.role === "user";
+                                                                return (
+                                                                    <em className={isUser ? "text-white" : "text-slate-900"}>
+                                                                        {children}
+                                                                    </em>
+                                                                );
+                                                            },
+                                                        }}
+                                                    >
+                                                        {message.content}
+                                                    </ReactMarkdown>
+                                                </div>
                                                 
                                                 {/* Show navigation links */}
                                                 {message.navigationLinks && message.navigationLinks.length > 0 && (
-                                                    <div className={`mt-2 pt-2 ${message.result?.actions && message.result.actions.length > 0 ? '' : 'border-t border-slate-200'}`}>
+                                                    <div className="mt-2 pt-2 border-t border-slate-200">
                                                         <p className="text-[10px] font-semibold text-slate-700 mb-1">Quick Links:</p>
                                                         <div className="flex flex-wrap gap-1">
                                                             {message.navigationLinks.map((link, idx) => (
@@ -518,16 +541,6 @@ export function FloatingAIChat() {
                                                                     {link.label}
                                                                 </a>
                                                             ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                
-                                                {/* Show error if any */}
-                                                {message.result?.error && (
-                                                    <div className="mt-2 pt-2 border-t border-slate-200">
-                                                        <div className="flex items-start gap-1.5">
-                                                            <AlertCircle className="w-3 h-3 text-red-600 flex-shrink-0 mt-0.5" />
-                                                            <p className="text-[10px] text-red-700">{message.result.error}</p>
                                                         </div>
                                                     </div>
                                                 )}
@@ -600,4 +613,3 @@ export function FloatingAIChat() {
         </>
     );
 }
-

@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { todos, verification, user, groups, settings, books, units, lessons, vocabularyWords, conversationSentences, userProgress } from "@/db/schema";
-import { eq, asc, and, inArray, sql, gte, lte } from "drizzle-orm";
+import { todos, verification, user, groups, settings, books, units, lessons, vocabularyWords, conversationSentences, userProgress, chatSessions, chatMessages } from "@/db/schema";
+import { eq, asc, and, inArray, sql, gte, lte, desc, like, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -1494,51 +1494,134 @@ Important:
         }
 
         // Add navigation links from response if provided
-        // Validate and correct lesson URLs to ensure they use the correct lesson type and ID
+        // Validate and correct all URLs (books, units, lessons) to ensure they use the correct format
         if (aiResponse.navigationLinks && Array.isArray(aiResponse.navigationLinks)) {
             for (const link of aiResponse.navigationLinks) {
-                // Check if this is a lesson URL that needs validation
-                const lessonUrlMatch = link.url.match(/^\/lessons\/(\d+)\/(vocabulary|reading|conversation|learn|practice|test)$/);
-                if (lessonUrlMatch) {
-                    const lessonId = parseInt(lessonUrlMatch[1]);
-                    const urlType = lessonUrlMatch[2];
-                    
-                    // Look up the actual lesson to get its correct type
+                let validatedLink: { label: string; url: string } | null = null;
+                
+                // Check if this is a book URL: /books/{id} or /books/{slug}
+                const bookUrlMatch = link.url.match(/^\/books\/(\d+)$/);
+                if (bookUrlMatch) {
+                    const bookId = parseInt(bookUrlMatch[1]);
                     try {
-                        const lesson = await getLessonById(lessonId);
-                        if (lesson) {
-                            // Check if URL type matches lesson type
-                            // For vocabulary lessons, allow learn/practice/test modes
-                            const isCorrectType = 
-                                (urlType === "vocabulary" && lesson.type === "vocabulary") ||
-                                (urlType === "reading" && lesson.type === "reading") ||
-                                (urlType === "conversation" && lesson.type === "conversation") ||
-                                ((urlType === "learn" || urlType === "practice" || urlType === "test") && lesson.type === "vocabulary");
-                            
-                            if (!isCorrectType) {
-                                // Correct the URL to use the actual lesson type
-                                const correctUrl = await getLessonNavigationUrl(lesson.id, lesson.type);
-                                navigationLinks.push({
-                                    label: link.label,
-                                    url: correctUrl,
-                                });
-                            } else {
-                                // URL is correct, use as-is
-                                navigationLinks.push(link);
-                            }
+                        const book = await getBookById(bookId);
+                        if (book) {
+                            validatedLink = {
+                                label: link.label,
+                                url: await getBookNavigationUrl(book.id),
+                            };
                         } else {
-                            // Lesson not found - skip this invalid link
-                            // The navigate action should handle correct navigation via lessonId
-                            console.warn(`Lesson ${lessonId} not found for navigation link: ${link.url}. Skipping invalid link.`);
+                            console.warn(`Book ${bookId} not found for navigation link: ${link.url}. Skipping invalid link.`);
+                            continue;
                         }
                     } catch (error) {
-                        // If lookup fails, use the original link
-                        console.warn(`Failed to validate lesson URL ${link.url}:`, error);
-                        navigationLinks.push(link);
+                        console.warn(`Failed to validate book URL ${link.url}:`, error);
+                        continue;
                     }
-                } else {
-                    // Not a lesson URL, use as-is
-                    navigationLinks.push(link);
+                }
+                // Check if this is a unit URL: /units/{id} or /units/{slug}
+                else if (link.url.match(/^\/units\//)) {
+                    const unitUrlMatch = link.url.match(/^\/units\/(\d+)$/);
+                    if (unitUrlMatch) {
+                        const unitId = parseInt(unitUrlMatch[1]);
+                        try {
+                            const unit = await getUnitById(unitId);
+                            if (unit) {
+                                validatedLink = {
+                                    label: link.label,
+                                    url: await getUnitNavigationUrl(unit.id),
+                                };
+                            } else {
+                                console.warn(`Unit ${unitId} not found for navigation link: ${link.url}. Skipping invalid link.`);
+                                continue;
+                            }
+                        } catch (error) {
+                            console.warn(`Failed to validate unit URL ${link.url}:`, error);
+                            continue;
+                        }
+                    } else {
+                        // Unit URL with slug - skip invalid format
+                        console.warn(`Invalid unit URL format: ${link.url}. Expected /units/{id}. Skipping invalid link.`);
+                        continue;
+                    }
+                }
+                // Check if this is a lesson URL
+                else if (link.url.match(/^\/lessons\//)) {
+                    // First, try to match numeric ID format: /lessons/123/vocabulary
+                    let lessonUrlMatch = link.url.match(/^\/lessons\/(\d+)\/(vocabulary|reading|conversation|learn|practice|test)$/);
+                    let lessonId: number | null = null;
+                    let urlType: string | null = null;
+                    
+                    if (lessonUrlMatch) {
+                        lessonId = parseInt(lessonUrlMatch[1]);
+                        urlType = lessonUrlMatch[2];
+                    } else {
+                        // Try to match slug-based format: /lessons/lesson-3-part-1/vocabulary
+                        const slugUrlMatch = link.url.match(/^\/lessons\/([^/]+)\/(vocabulary|reading|conversation|learn|practice|test)$/);
+                        if (slugUrlMatch) {
+                            const slug = slugUrlMatch[1];
+                            urlType = slugUrlMatch[2];
+                            
+                            // Try to find lesson by slug/title
+                            try {
+                                const lesson = await findLessonByTitleOrSlug(slug);
+                                if (lesson) {
+                                    lessonId = lesson.id;
+                                } else {
+                                    // Lesson not found by slug - skip this invalid link
+                                    console.warn(`Lesson not found for slug "${slug}" in navigation link: ${link.url}. Skipping invalid link.`);
+                                    continue;
+                                }
+                            } catch (error) {
+                                console.warn(`Failed to find lesson by slug "${slug}":`, error);
+                                continue;
+                            }
+                        } else {
+                            // Invalid lesson URL format - skip
+                            console.warn(`Invalid lesson URL format: ${link.url}. Expected /lessons/{id}/{type}. Skipping invalid link.`);
+                            continue;
+                        }
+                    }
+                    
+                    // Validate and correct the lesson URL
+                    if (lessonId !== null && urlType !== null) {
+                        try {
+                            const lesson = await getLessonById(lessonId);
+                            if (lesson) {
+                                // Always generate the correct URL using numeric ID format
+                                // Determine the mode for vocabulary lessons
+                                let mode: "learn" | "practice" | "test" | undefined = undefined;
+                                if (lesson.type === "vocabulary") {
+                                    if (urlType === "learn") mode = "learn";
+                                    else if (urlType === "practice") mode = "practice";
+                                    else if (urlType === "test") mode = "test";
+                                }
+                                
+                                validatedLink = {
+                                    label: link.label,
+                                    url: await getLessonNavigationUrl(lesson.id, lesson.type, mode),
+                                };
+                            } else {
+                                // Lesson not found - skip this invalid link
+                                console.warn(`Lesson ${lessonId} not found for navigation link: ${link.url}. Skipping invalid link.`);
+                                continue;
+                            }
+                        } catch (error) {
+                            // If lookup fails, skip the link
+                            console.warn(`Failed to validate lesson URL ${link.url}:`, error);
+                            continue;
+                        }
+                    }
+                }
+                // Not a recognized URL pattern - skip it
+                else {
+                    console.warn(`Unrecognized URL pattern in navigation link: ${link.url}. Skipping.`);
+                    continue;
+                }
+                
+                // Add validated link if we have one
+                if (validatedLink) {
+                    navigationLinks.push(validatedLink);
                 }
             }
         }
@@ -2240,6 +2323,26 @@ export async function isOpenRouterAvailable() {
  * 2. User-specific AI setting (must be enabled)
  * 3. OpenRouter configuration (must be configured)
  */
+export async function getChatHistoryLimit(): Promise<number> {
+    try {
+        const result = await db
+            .select()
+            .from(settings)
+            .where(eq(settings.key, "ai.chat_history_limit"))
+            .limit(1);
+
+        if (result.length === 0) {
+            return 10; // Default to 10
+        }
+
+        const limit = JSON.parse(result[0].value);
+        return typeof limit === "number" && limit > 0 ? limit : 10;
+    } catch (error) {
+        console.error("Failed to fetch chat history limit:", error);
+        return 10; // Default to 10 on error
+    }
+}
+
 export async function isAIAvailableForUser(): Promise<boolean> {
     try {
         // First check OpenRouter configuration
@@ -2498,6 +2601,64 @@ export async function getLessonById(id: number) {
         return lesson || null;
     } catch (error) {
         console.error("Failed to fetch lesson:", error);
+        return null;
+    }
+}
+
+// Find lesson by title/slug (for converting slug-based URLs to ID-based URLs)
+export async function findLessonByTitleOrSlug(slugOrTitle: string) {
+    const session = await getSession();
+    if (!session) return null;
+
+    try {
+        // Normalize the slug/title for matching
+        // Convert "lesson-3-part-1" to "lesson 3 part 1" and try to match
+        const normalized = slugOrTitle
+            .toLowerCase()
+            .replace(/-/g, ' ')
+            .trim();
+        
+        // Get all enabled lessons
+        const allLessons = await db
+            .select({
+                id: lessons.id,
+                unitId: lessons.unitId,
+                title: lessons.title,
+                type: lessons.type,
+                order: lessons.order,
+                enabled: lessons.enabled,
+                createdAt: lessons.createdAt,
+                updatedAt: lessons.updatedAt,
+            })
+            .from(lessons)
+            .innerJoin(units, eq(lessons.unitId, units.id))
+            .innerJoin(books, eq(units.bookId, books.id))
+            .where(and(
+                eq(lessons.enabled, true),
+                eq(units.enabled, true),
+                eq(books.enabled, true)
+            ));
+
+        // Try exact match first (case-insensitive)
+        let lesson = allLessons.find(l => 
+            l.title.toLowerCase().replace(/-/g, ' ').trim() === normalized
+        );
+
+        // If no exact match, try partial match
+        if (!lesson) {
+            lesson = allLessons.find(l => {
+                const lessonTitleNormalized = l.title.toLowerCase().replace(/-/g, ' ').trim();
+                // Check if normalized slug is contained in lesson title or vice versa
+                return lessonTitleNormalized.includes(normalized) || 
+                       normalized.includes(lessonTitleNormalized) ||
+                       // Also try matching numbers (e.g., "lesson 3 part 1" matches "Lesson 3 Part 1")
+                       lessonTitleNormalized.replace(/\s+/g, ' ') === normalized.replace(/\s+/g, ' ');
+            });
+        }
+
+        return lesson || null;
+    } catch (error) {
+        console.error("Failed to find lesson by title/slug:", error);
         return null;
     }
 }
@@ -3458,5 +3619,226 @@ export async function getUserDailyActivityByBook(
     } catch (error) {
         console.error("Failed to fetch user daily activity by book:", error);
         return {};
+    }
+}
+
+// Chat session management actions
+export async function createChatSession(firstMessage?: string): Promise<number | null> {
+    const session = await getSession();
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+
+    try {
+        // Generate title from first message (truncate to 50 chars)
+        const title = firstMessage
+            ? firstMessage.trim().slice(0, 50) || "New Chat"
+            : "New Chat";
+
+        const [newSession] = await db
+            .insert(chatSessions)
+            .values({
+                userId: session.user.id,
+                title,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            })
+            .returning({ id: chatSessions.id });
+
+        return newSession?.id || null;
+    } catch (error) {
+        console.error("Failed to create chat session:", error);
+        throw error;
+    }
+}
+
+export async function getUserChatSessions() {
+    const session = await getSession();
+    if (!session) return [];
+
+    try {
+        return await db
+            .select()
+            .from(chatSessions)
+            .where(eq(chatSessions.userId, session.user.id))
+            .orderBy(desc(chatSessions.updatedAt));
+    } catch (error) {
+        console.error("Failed to fetch chat sessions:", error);
+        return [];
+    }
+}
+
+export async function getChatSessionMessages(sessionId: number) {
+    const session = await getSession();
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+
+    try {
+        // Verify session belongs to user
+        const [sessionRecord] = await db
+            .select()
+            .from(chatSessions)
+            .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, session.user.id)))
+            .limit(1);
+
+        if (!sessionRecord) {
+            throw new Error("Session not found");
+        }
+
+        return await db
+            .select()
+            .from(chatMessages)
+            .where(eq(chatMessages.sessionId, sessionId))
+            .orderBy(asc(chatMessages.createdAt));
+    } catch (error) {
+        console.error("Failed to fetch chat messages:", error);
+        throw error;
+    }
+}
+
+export async function saveChatMessage(
+    sessionId: number, 
+    role: "user" | "assistant", 
+    content: string,
+    navigationLinks?: Array<{ label: string; url: string }>
+) {
+    const session = await getSession();
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+
+    try {
+        // Verify session belongs to user
+        const [sessionRecord] = await db
+            .select()
+            .from(chatSessions)
+            .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, session.user.id)))
+            .limit(1);
+
+        if (!sessionRecord) {
+            throw new Error("Session not found");
+        }
+
+        // Save message
+        await db.insert(chatMessages).values({
+            sessionId,
+            role,
+            content,
+            navigationLinks: navigationLinks && navigationLinks.length > 0 ? navigationLinks : null,
+            createdAt: new Date(),
+        });
+
+        // Update session updatedAt timestamp
+        await db
+            .update(chatSessions)
+            .set({ updatedAt: new Date() })
+            .where(eq(chatSessions.id, sessionId));
+
+        // If this is the first user message, update title
+        if (role === "user") {
+            const messages = await db
+                .select()
+                .from(chatMessages)
+                .where(and(eq(chatMessages.sessionId, sessionId), eq(chatMessages.role, "user")))
+                .orderBy(asc(chatMessages.createdAt));
+
+            // If this is the first user message, update title
+            if (messages.length === 1) {
+                const title = content.trim().slice(0, 50) || "New Chat";
+                await db
+                    .update(chatSessions)
+                    .set({ title, updatedAt: new Date() })
+                    .where(eq(chatSessions.id, sessionId));
+            }
+        }
+
+        revalidatePath("/chat");
+    } catch (error) {
+        console.error("Failed to save chat message:", error);
+        throw error;
+    }
+}
+
+export async function updateChatSessionTitle(sessionId: number, title: string) {
+    const session = await getSession();
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+
+    try {
+        // Verify session belongs to user
+        const [sessionRecord] = await db
+            .select()
+            .from(chatSessions)
+            .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, session.user.id)))
+            .limit(1);
+
+        if (!sessionRecord) {
+            throw new Error("Session not found");
+        }
+
+        await db
+            .update(chatSessions)
+            .set({ title: title.trim().slice(0, 100), updatedAt: new Date() })
+            .where(eq(chatSessions.id, sessionId));
+
+        revalidatePath("/chat");
+    } catch (error) {
+        console.error("Failed to update chat session title:", error);
+        throw error;
+    }
+}
+
+export async function deleteChatSession(sessionId: number) {
+    const session = await getSession();
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+
+    try {
+        // Verify session belongs to user
+        const [sessionRecord] = await db
+            .select()
+            .from(chatSessions)
+            .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, session.user.id)))
+            .limit(1);
+
+        if (!sessionRecord) {
+            throw new Error("Session not found");
+        }
+
+        // Delete session (messages will cascade delete)
+        await db.delete(chatSessions).where(eq(chatSessions.id, sessionId));
+
+        revalidatePath("/chat");
+    } catch (error) {
+        console.error("Failed to delete chat session:", error);
+        throw error;
+    }
+}
+
+export async function searchChatSessions(query: string) {
+    const session = await getSession();
+    if (!session) return [];
+
+    try {
+        if (!query.trim()) {
+            return await getUserChatSessions();
+        }
+
+        return await db
+            .select()
+            .from(chatSessions)
+            .where(
+                and(
+                    eq(chatSessions.userId, session.user.id),
+                    like(chatSessions.title, `%${query.trim()}%`)
+                )
+            )
+            .orderBy(desc(chatSessions.updatedAt));
+    } catch (error) {
+        console.error("Failed to search chat sessions:", error);
+        return [];
     }
 }
