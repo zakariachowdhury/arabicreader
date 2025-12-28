@@ -24,6 +24,7 @@ export async function getAllUsers() {
                 defaultGroupId: user.defaultGroupId,
                 arabicFontSizeMultiplier: user.arabicFontSizeMultiplier,
                 englishFontSizeMultiplier: user.englishFontSizeMultiplier,
+                arabicFontFamily: user.arabicFontFamily,
                 createdAt: user.createdAt,
                 updatedAt: user.updatedAt,
             })
