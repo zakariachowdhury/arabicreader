@@ -63,9 +63,10 @@ export function ChatPageClient({ initialSessions }: ChatPageClientProps) {
         const DEBOUNCE_MS = 2000; // Don't reload more than once per 2 seconds
         let lastMessageSentTime = 0;
 
-        const handleChatUpdate = async (e: CustomEvent) => {
-            const eventSessionId = e.detail?.sessionId;
-            const eventTimestamp = e.detail?.timestamp || Date.now();
+        const handleChatUpdate = async (e: Event) => {
+            const customEvent = e as CustomEvent;
+            const eventSessionId = customEvent.detail?.sessionId;
+            const eventTimestamp = customEvent.detail?.timestamp || Date.now();
             
             // Skip reload if we're currently loading (we already have the latest state)
             if (isLoadingMessages) {
@@ -119,15 +120,15 @@ export function ChatPageClient({ initialSessions }: ChatPageClientProps) {
             lastMessageSentTime = Date.now();
         };
 
-        window.addEventListener("chat-updated" as any, handleChatUpdate as EventListener);
-        window.addEventListener("chat-message-sent" as any, handleMessageSent as EventListener);
+        window.addEventListener("chat-updated" as any, handleChatUpdate);
+        window.addEventListener("chat-message-sent" as any, handleMessageSent);
 
         return () => {
             if (reloadTimeout) {
                 clearTimeout(reloadTimeout);
             }
-            window.removeEventListener("chat-updated" as any, handleChatUpdate as EventListener);
-            window.removeEventListener("chat-message-sent" as any, handleMessageSent as EventListener);
+            window.removeEventListener("chat-updated" as any, handleChatUpdate);
+            window.removeEventListener("chat-message-sent" as any, handleMessageSent);
         };
     }, [activeSessionId, isLoadingMessages]);
 
