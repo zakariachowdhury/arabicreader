@@ -7,9 +7,9 @@ import {
     getChatSessionMessages,
     createChatSession,
     saveChatMessage,
-    getChatHistoryLimit,
-    type ChatSession
+    getChatHistoryLimit
 } from "@/app/actions";
+import type { ChatSession } from "@/db/schema";
 import { streamChatResponse } from "@/lib/chat-stream";
 
 export interface ChatMessage {

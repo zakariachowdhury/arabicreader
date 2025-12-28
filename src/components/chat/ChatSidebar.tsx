@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getUserChatSessions, deleteChatSession, updateChatSessionTitle, searchChatSessions, type ChatSession } from "@/app/actions";
+import { getUserChatSessions, deleteChatSession, updateChatSessionTitle, searchChatSessions } from "@/app/actions";
+import type { ChatSession } from "@/db/schema";
 import { Plus, Search, Trash2, Edit2, X, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 

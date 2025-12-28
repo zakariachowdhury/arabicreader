@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getChatSessionMessages, type ChatSession } from "@/app/actions";
+import { getChatSessionMessages } from "@/app/actions";
+import type { ChatSession } from "@/db/schema";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatInterface } from "./ChatInterface";
 

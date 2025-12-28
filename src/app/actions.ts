@@ -2,7 +2,6 @@
 
 import { db } from "@/db";
 import { todos, verification, user, groups, settings, books, units, lessons, vocabularyWords, conversationSentences, userProgress, chatSessions, chatMessages } from "@/db/schema";
-import type { ChatSession } from "@/db/schema";
 import { eq, asc, and, inArray, sql, gte, lte, desc, like, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
@@ -3622,9 +3621,6 @@ export async function getUserDailyActivityByBook(
         return {};
     }
 }
-
-// Re-export ChatSession type for use in components
-export type { ChatSession };
 
 // Chat session management actions
 export async function createChatSession(firstMessage?: string): Promise<number | null> {
