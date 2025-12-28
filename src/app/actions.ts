@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { todos, verification, user, groups, settings, books, units, lessons, vocabularyWords, conversationSentences, userProgress, chatSessions, chatMessages, type ChatSession } from "@/db/schema";
+import { todos, verification, user, groups, settings, books, units, lessons, vocabularyWords, conversationSentences, userProgress, chatSessions, chatMessages } from "@/db/schema";
+import type { ChatSession } from "@/db/schema";
 import { eq, asc, and, inArray, sql, gte, lte, desc, like, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
