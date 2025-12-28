@@ -5,6 +5,7 @@ import { adminUpdateTodo, adminDeleteTodo } from "@/app/admin/actions";
 import { GroupBadge } from "@/components/GroupSelector";
 import { Edit2, Trash2, Save, X, CheckCircle2, Circle } from "lucide-react";
 import { DeleteConfirmation } from "./DeleteConfirmation";
+import { toast } from "@/lib/toast";
 
 type TodoWithUser = {
     id: number;
@@ -43,7 +44,7 @@ export function TodoManagement({ initialTodos }: { initialTodos: TodoWithUser[] 
 
     const handleSave = async (todoId: number) => {
         if (!editContent.trim()) {
-            alert("Todo content cannot be empty");
+            toast.warning("Todo content cannot be empty");
             return;
         }
 
@@ -59,7 +60,7 @@ export function TodoManagement({ initialTodos }: { initialTodos: TodoWithUser[] 
                 setEditContent("");
             } catch (error) {
                 console.error("Failed to update todo:", error);
-                alert("Failed to update todo. Please try again.");
+                toast.error("Failed to update todo. Please try again.");
             }
         });
     };
@@ -75,7 +76,7 @@ export function TodoManagement({ initialTodos }: { initialTodos: TodoWithUser[] 
                 ));
             } catch (error) {
                 console.error("Failed to toggle todo:", error);
-                alert("Failed to toggle todo. Please try again.");
+                toast.error("Failed to toggle todo. Please try again.");
             }
         });
     };
@@ -96,7 +97,7 @@ export function TodoManagement({ initialTodos }: { initialTodos: TodoWithUser[] 
                 setDeletingId(null);
             } catch (error) {
                 console.error("Failed to delete todo:", error);
-                alert("Failed to delete todo. Please try again.");
+                toast.error("Failed to delete todo. Please try again.");
                 setDeletingId(null);
             }
         });

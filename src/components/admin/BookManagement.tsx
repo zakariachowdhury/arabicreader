@@ -6,6 +6,7 @@ import { createBook, updateBook, deleteBook, updateBookOrder } from "@/app/admin
 import { Edit2, Trash2, Save, X, Plus, BookOpen, GripVertical, ToggleLeft, ToggleRight } from "lucide-react";
 import { DeleteConfirmation } from "./DeleteConfirmation";
 import Link from "next/link";
+import { toast } from "@/lib/toast";
 import {
     DndContext,
     closestCenter,
@@ -240,14 +241,14 @@ export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
                 setEditData(null);
             } catch (error) {
                 console.error("Failed to update book:", error);
-                alert("Failed to update book. Please try again.");
+                toast.error("Failed to update book. Please try again.");
             }
         });
     };
 
     const handleCreate = async () => {
         if (!newBook.title.trim()) {
-            alert("Title is required");
+            toast.warning("Title is required");
             return;
         }
 
@@ -262,7 +263,7 @@ export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
                 setNewBook({ title: "", description: "" });
             } catch (error) {
                 console.error("Failed to create book:", error);
-                alert("Failed to create book. Please try again.");
+                toast.error("Failed to create book. Please try again.");
             }
         });
     };
@@ -283,7 +284,7 @@ export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
                 setDeletingId(null);
             } catch (error) {
                 console.error("Failed to delete book:", error);
-                alert("Failed to delete book. Please try again.");
+                toast.error("Failed to delete book. Please try again.");
                 setDeletingId(null);
             }
         });
@@ -301,7 +302,7 @@ export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
                 ));
             } catch (error) {
                 console.error("Failed to toggle book enabled state:", error);
-                alert("Failed to update book. Please try again.");
+                toast.error("Failed to update book. Please try again.");
             }
         });
     };
@@ -322,7 +323,7 @@ export function BookManagement({ initialBooks }: { initialBooks: Book[] }) {
                     await updateBookOrder(newBooks.map((b) => b.id));
                 } catch (error) {
                     console.error("Failed to update book order:", error);
-                    alert("Failed to update book order. Please try again.");
+                    toast.error("Failed to update book order. Please try again.");
                     // Revert on error
                     setBooks(books);
                 }

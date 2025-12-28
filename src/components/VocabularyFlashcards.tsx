@@ -5,6 +5,7 @@ import { VocabularyWord, UserProgress } from "@/db/schema";
 import { updateUserProgress } from "@/app/actions";
 import { BookOpen, ChevronLeft, ChevronRight, RotateCcw, CheckCircle2, XCircle, Eye, Volume2, VolumeX, Volume1, VolumeOff } from "lucide-react";
 import { useArabicFontSize } from "@/contexts/ArabicFontSizeContext";
+import { toast } from "@/lib/toast";
 
 type Mode = "learn" | "practice" | "test";
 
@@ -381,7 +382,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
     // Text-to-speech function
     const speakText = (text: string, lang: "ar" | "en", type: "arabic" | "english") => {
         if (!("speechSynthesis" in window)) {
-            alert("Text-to-speech is not supported in your browser.");
+            toast.warning("Text-to-speech is not supported in your browser.");
             return;
         }
 

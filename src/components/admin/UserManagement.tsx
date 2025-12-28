@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { User } from "@/db/schema";
 import { updateUser, deleteUser } from "@/app/admin/actions";
 import { Edit2, Trash2, Save, X, Shield, ShieldOff, Sparkles, XCircle } from "lucide-react";
+import { toast } from "@/lib/toast";
+import { ConfirmationModal } from "@/components/ConfirmationModal";
 
 type UserWithActions = Omit<User, "image">;
 
@@ -12,6 +14,7 @@ export function UserManagement({ initialUsers }: { initialUsers: UserWithActions
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editData, setEditData] = useState<{ name: string; email: string; isAdmin: boolean; aiEnabled: boolean } | null>(null);
     const [isPending, startTransition] = useTransition();
+    const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
     const handleEdit = (user: UserWithActions) => {
         setEditingId(user.id);
@@ -43,23 +46,27 @@ export function UserManagement({ initialUsers }: { initialUsers: UserWithActions
                 setEditData(null);
             } catch (error) {
                 console.error("Failed to update user:", error);
-                alert("Failed to update user. Please try again.");
+                toast.error("Failed to update user. Please try again.");
             }
         });
     };
 
-    const handleDelete = async (userId: string) => {
-        if (!confirm("Are you sure you want to delete this user? This will also delete all their todos.")) {
-            return;
-        }
+    const handleDeleteClick = (userId: string) => {
+        setDeletingUserId(userId);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deletingUserId) return;
 
         startTransition(async () => {
             try {
-                await deleteUser(userId);
-                setUsers(users.filter(u => u.id !== userId));
+                await deleteUser(deletingUserId);
+                setUsers(users.filter(u => u.id !== deletingUserId));
+                setDeletingUserId(null);
             } catch (error) {
                 console.error("Failed to delete user:", error);
-                alert("Failed to delete user. Please try again.");
+                toast.error("Failed to delete user. Please try again.");
+                setDeletingUserId(null);
             }
         });
     };
@@ -206,7 +213,7 @@ export function UserManagement({ initialUsers }: { initialUsers: UserWithActions
                                                 <Edit2 className="w-4 h-4" />
                                             </button>
                                             <button
-                                                onClick={() => handleDelete(user.id)}
+                                                onClick={() => handleDeleteClick(user.id)}
                                                 disabled={isPending}
                                                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                                                 title="Delete"
@@ -221,6 +228,17 @@ export function UserManagement({ initialUsers }: { initialUsers: UserWithActions
                     </tbody>
                 </table>
             </div>
+            <ConfirmationModal
+                isOpen={deletingUserId !== null}
+                onClose={() => setDeletingUserId(null)}
+                onConfirm={handleDeleteConfirm}
+                title="Delete User"
+                message="Are you sure you want to delete this user? This will also delete all their todos."
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+                isPending={isPending}
+            />
         </div>
     );
 }

@@ -7,6 +7,7 @@ import { getAvailableModelsForUsersAction, getDefaultModelAction } from "@/app/a
 import { Edit2, Trash2, Save, X, Plus, Upload, Loader2, CheckCircle2, GripVertical, Info, Sparkles, Play, Volume2 } from "lucide-react";
 import { DeleteConfirmation } from "./DeleteConfirmation";
 import { useArabicFontSize } from "@/contexts/ArabicFontSizeContext";
+import { toast } from "@/lib/toast";
 import {
     DndContext,
     closestCenter,
@@ -513,14 +514,14 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle, cate
                 setEditData(null);
             } catch (error) {
                 console.error("Failed to update vocabulary word:", error);
-                alert("Failed to update vocabulary word. Please try again.");
+                toast.error("Failed to update vocabulary word. Please try again.");
             }
         });
     };
 
     const handleCreate = async () => {
         if (!newWord.arabic.trim() || !newWord.english.trim()) {
-            alert("Both Arabic and English are required");
+            toast.warning("Both Arabic and English are required");
             return;
         }
 
@@ -536,7 +537,7 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle, cate
                 setNewWord({ arabic: "", english: "", order: words.length + 1 });
             } catch (error) {
                 console.error("Failed to add vocabulary word:", error);
-                alert("Failed to add vocabulary word. Please try again.");
+                toast.error("Failed to add vocabulary word. Please try again.");
             }
         });
     };
@@ -557,7 +558,7 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle, cate
                 setDeletingId(null);
             } catch (error) {
                 console.error("Failed to delete vocabulary word:", error);
-                alert("Failed to delete vocabulary word. Please try again.");
+                toast.error("Failed to delete vocabulary word. Please try again.");
                 setDeletingId(null);
             }
         });
@@ -721,7 +722,7 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle, cate
         // Only add selected words
         const selectedWords = parsedWords.filter((_: unknown, index: number) => selectedIndices.has(index));
         if (selectedWords.length === 0) {
-            alert("Please select at least one word pair to add.");
+            toast.warning("Please select at least one word pair to add.");
             return;
         }
 
@@ -742,7 +743,7 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle, cate
                 }
             } catch (error) {
                 console.error("Failed to bulk add vocabulary words:", error);
-                alert("Failed to add vocabulary words. Please try again.");
+                toast.error("Failed to add vocabulary words. Please try again.");
             }
         });
     };
@@ -798,7 +799,7 @@ export function VocabularyManagement({ initialWords, lessonId, lessonTitle, cate
                     await updateVocabularyOrder(newWords.map((w) => w.id));
                 } catch (error) {
                     console.error("Failed to update vocabulary order:", error);
-                    alert("Failed to update vocabulary order. Please try again.");
+                    toast.error("Failed to update vocabulary order. Please try again.");
                     // Revert on error
                     setWords(words);
                 }

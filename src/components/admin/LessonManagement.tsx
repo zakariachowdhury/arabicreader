@@ -6,6 +6,7 @@ import { createLesson, updateLesson, deleteLesson, updateLessonOrder } from "@/a
 import { Edit2, Trash2, Save, X, Plus, BookOpen, GripVertical, ToggleLeft, ToggleRight } from "lucide-react";
 import { DeleteConfirmation } from "./DeleteConfirmation";
 import Link from "next/link";
+import { toast } from "@/lib/toast";
 import {
     DndContext,
     closestCenter,
@@ -289,14 +290,14 @@ export function LessonManagement({ initialLessons, unitId }: { initialLessons: L
                 setEditData(null);
             } catch (error) {
                 console.error("Failed to update lesson:", error);
-                alert("Failed to update lesson. Please try again.");
+                toast.error("Failed to update lesson. Please try again.");
             }
         });
     };
 
     const handleCreate = async () => {
         if (!newLesson.title.trim()) {
-            alert("Title is required");
+            toast.warning("Title is required");
             return;
         }
 
@@ -312,7 +313,7 @@ export function LessonManagement({ initialLessons, unitId }: { initialLessons: L
                 setNewLesson({ title: "", type: "vocabulary", order: lessons.length + 1 });
             } catch (error) {
                 console.error("Failed to create lesson:", error);
-                alert("Failed to create lesson. Please try again.");
+                toast.error("Failed to create lesson. Please try again.");
             }
         });
     };
@@ -333,7 +334,7 @@ export function LessonManagement({ initialLessons, unitId }: { initialLessons: L
                 setDeletingId(null);
             } catch (error) {
                 console.error("Failed to delete lesson:", error);
-                alert("Failed to delete lesson. Please try again.");
+                toast.error("Failed to delete lesson. Please try again.");
                 setDeletingId(null);
             }
         });
@@ -351,7 +352,7 @@ export function LessonManagement({ initialLessons, unitId }: { initialLessons: L
                 ));
             } catch (error) {
                 console.error("Failed to toggle lesson enabled state:", error);
-                alert("Failed to update lesson. Please try again.");
+                toast.error("Failed to update lesson. Please try again.");
             }
         });
     };
@@ -372,7 +373,7 @@ export function LessonManagement({ initialLessons, unitId }: { initialLessons: L
                     await updateLessonOrder(newLessons.map((l) => l.id));
                 } catch (error) {
                     console.error("Failed to update lesson order:", error);
-                    alert("Failed to update lesson order. Please try again.");
+                    toast.error("Failed to update lesson order. Please try again.");
                     // Revert on error
                     setLessons(lessons);
                 }

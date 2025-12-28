@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { adminUpdateGroup, adminDeleteGroup } from "@/app/admin/actions";
 import { Edit2, Trash2, Save, X, Palette } from "lucide-react";
+import { toast } from "@/lib/toast";
+import { ConfirmationModal } from "@/components/ConfirmationModal";
 
 const DEFAULT_COLORS = [
     "#3B82F6", // blue
@@ -34,6 +36,7 @@ export function GroupManagement({ initialGroups }: { initialGroups: GroupWithUse
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editData, setEditData] = useState<{ name: string; color: string; description: string } | null>(null);
     const [isPending, startTransition] = useTransition();
+    const [deletingGroupId, setDeletingGroupId] = useState<number | null>(null);
 
     const handleEdit = (group: GroupWithUser) => {
         setEditingId(group.id);
@@ -51,7 +54,7 @@ export function GroupManagement({ initialGroups }: { initialGroups: GroupWithUse
 
     const handleSave = async (groupId: number) => {
         if (!editData || !editData.name.trim()) {
-            alert("Group name is required");
+            toast.warning("Group name is required");
             return;
         }
 
@@ -77,23 +80,27 @@ export function GroupManagement({ initialGroups }: { initialGroups: GroupWithUse
                 setEditData(null);
             } catch (error) {
                 console.error("Failed to update group:", error);
-                alert("Failed to update group. Please try again.");
+                toast.error("Failed to update group. Please try again.");
             }
         });
     };
 
-    const handleDelete = async (groupId: number) => {
-        if (!confirm("Are you sure you want to delete this group? Todos in this group will be moved to 'Uncategorized'.")) {
-            return;
-        }
+    const handleDeleteClick = (groupId: number) => {
+        setDeletingGroupId(groupId);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deletingGroupId) return;
 
         startTransition(async () => {
             try {
-                await adminDeleteGroup(groupId);
-                setGroups(groups.filter(g => g.id !== groupId));
+                await adminDeleteGroup(deletingGroupId);
+                setGroups(groups.filter(g => g.id !== deletingGroupId));
+                setDeletingGroupId(null);
             } catch (error) {
                 console.error("Failed to delete group:", error);
-                alert("Failed to delete group. Please try again.");
+                toast.error("Failed to delete group. Please try again.");
+                setDeletingGroupId(null);
             }
         });
     };
@@ -217,7 +224,7 @@ export function GroupManagement({ initialGroups }: { initialGroups: GroupWithUse
                                                 <Edit2 className="w-4 h-4" />
                                             </button>
                                             <button
-                                                onClick={() => handleDelete(group.id)}
+                                                onClick={() => handleDeleteClick(group.id)}
                                                 disabled={isPending}
                                                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                                                 title="Delete"
@@ -238,6 +245,17 @@ export function GroupManagement({ initialGroups }: { initialGroups: GroupWithUse
                     </div>
                 )}
             </div>
+            <ConfirmationModal
+                isOpen={deletingGroupId !== null}
+                onClose={() => setDeletingGroupId(null)}
+                onConfirm={handleDeleteConfirm}
+                title="Delete Group"
+                message="Are you sure you want to delete this group? Todos in this group will be moved to 'Uncategorized'."
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+                isPending={isPending}
+            />
         </div>
     );
 }

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { resetLessonProgress } from "@/app/actions";
 import { RotateCcw, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "@/lib/toast";
 
 interface ResetProgressButtonProps {
     lessonId: number;
@@ -35,7 +36,7 @@ export function ResetProgressButton({ lessonId, lessonTitle, onConfirmChange }: 
                 router.refresh();
             } catch (error) {
                 console.error("Failed to reset progress:", error);
-                alert("Failed to reset progress. Please try again.");
+                toast.error("Failed to reset progress. Please try again.");
             }
         });
     };

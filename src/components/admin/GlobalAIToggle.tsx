@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { getGlobalAIEnabled, setGlobalAIEnabled } from "@/app/admin/actions";
 import { Sparkles, XCircle } from "lucide-react";
+import { toast } from "@/lib/toast";
 
 export function GlobalAIToggle({ initialEnabled }: { initialEnabled: boolean }) {
     const [enabled, setEnabled] = useState(initialEnabled);
@@ -19,7 +20,7 @@ export function GlobalAIToggle({ initialEnabled }: { initialEnabled: boolean }) 
                 console.error("Failed to update global AI setting:", error);
                 // Revert on error
                 setEnabled(!newValue);
-                alert("Failed to update global AI setting. Please try again.");
+                toast.error("Failed to update global AI setting. Please try again.");
             }
         });
     };

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { getChatHistoryLimit, setChatHistoryLimit } from "@/app/admin/actions";
 import { MessageSquare, Loader2 } from "lucide-react";
 import { useEffect } from "react";
+import { toast } from "@/lib/toast";
 
 export function ChatHistoryLimitSetting({ initialLimit }: { initialLimit: number }) {
     const [limit, setLimit] = useState(initialLimit);
@@ -21,7 +22,7 @@ export function ChatHistoryLimitSetting({ initialLimit }: { initialLimit: number
         const newLimit = parseInt(inputValue, 10);
         
         if (isNaN(newLimit) || newLimit < 1 || newLimit > 100) {
-            alert("Please enter a number between 1 and 100");
+            toast.warning("Please enter a number between 1 and 100");
             setInputValue(limit.toString());
             return;
         }
@@ -37,7 +38,7 @@ export function ChatHistoryLimitSetting({ initialLimit }: { initialLimit: number
                 // Revert on error
                 setLimit(limit);
                 setInputValue(limit.toString());
-                alert("Failed to update chat history limit. Please try again.");
+                toast.error("Failed to update chat history limit. Please try again.");
             } finally {
                 setIsLoading(false);
             }

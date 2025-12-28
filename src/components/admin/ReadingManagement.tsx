@@ -7,6 +7,7 @@ import { getAvailableModelsForUsersAction, getDefaultModelAction } from "@/app/a
 import { Edit2, Trash2, Save, X, Plus, Upload, Loader2, CheckCircle2, GripVertical, Info, Sparkles, Volume2 } from "lucide-react";
 import { DeleteConfirmation } from "./DeleteConfirmation";
 import { useArabicFontSize } from "@/contexts/ArabicFontSizeContext";
+import { toast } from "@/lib/toast";
 import {
     DndContext,
     closestCenter,
@@ -541,14 +542,14 @@ export function ReadingManagement({ initialSentences, lessonId, lessonTitle, cat
                 setEditData(null);
             } catch (error) {
                 console.error("Failed to update reading sentence:", error);
-                alert("Failed to update reading sentence. Please try again.");
+                toast.error("Failed to update reading sentence. Please try again.");
             }
         });
     };
 
     const handleCreate = async () => {
         if (!newSentence.arabic.trim()) {
-            alert("Arabic text is required");
+            toast.warning("Arabic text is required");
             return;
         }
 
@@ -565,7 +566,7 @@ export function ReadingManagement({ initialSentences, lessonId, lessonTitle, cat
                 setNewSentence({ arabic: "", english: "", order: sentences.length + 1, isTitle: false });
             } catch (error) {
                 console.error("Failed to add reading sentence:", error);
-                alert("Failed to add reading sentence. Please try again.");
+                toast.error("Failed to add reading sentence. Please try again.");
             }
         });
     };
@@ -586,7 +587,7 @@ export function ReadingManagement({ initialSentences, lessonId, lessonTitle, cat
                 setDeletingId(null);
             } catch (error) {
                 console.error("Failed to delete reading sentence:", error);
-                alert("Failed to delete reading sentence. Please try again.");
+                toast.error("Failed to delete reading sentence. Please try again.");
                 setDeletingId(null);
             }
         });
@@ -745,7 +746,7 @@ export function ReadingManagement({ initialSentences, lessonId, lessonTitle, cat
         // Only add selected sentences
         const selectedSentences = parsedSentences.filter((_: unknown, index: number) => selectedIndices.has(index));
         if (selectedSentences.length === 0) {
-            alert("Please select at least one sentence to add.");
+            toast.warning("Please select at least one sentence to add.");
             return;
         }
 
@@ -766,7 +767,7 @@ export function ReadingManagement({ initialSentences, lessonId, lessonTitle, cat
                 }
             } catch (error) {
                 console.error("Failed to bulk add reading sentences:", error);
-                alert("Failed to add reading sentences. Please try again.");
+                toast.error("Failed to add reading sentences. Please try again.");
             }
         });
     };
@@ -822,7 +823,7 @@ export function ReadingManagement({ initialSentences, lessonId, lessonTitle, cat
                     await updateConversationOrder(newSentences.map((s) => s.id));
                 } catch (error) {
                     console.error("Failed to update reading order:", error);
-                    alert("Failed to update reading order. Please try again.");
+                    toast.error("Failed to update reading order. Please try again.");
                     // Revert on error
                     setSentences(sentences);
                 }

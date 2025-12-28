@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { getGroups, createGroup, updateGroup, deleteGroup, setDefaultGroup } from "@/app/actions";
 import { type Group } from "@/db/schema";
 import { Plus, Edit2, Trash2, Save, X, Palette, Star } from "lucide-react";
+import { toast } from "@/lib/toast";
+import { ConfirmationModal } from "@/components/ConfirmationModal";
 
 const DEFAULT_COLORS = [
     "#3B82F6", // blue
@@ -25,6 +27,7 @@ export function GroupManagement({ initialGroups, todoCounts, defaultGroupId }: {
     const [isCreating, setIsCreating] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [isPending, startTransition] = useTransition();
+    const [deletingGroupId, setDeletingGroupId] = useState<number | null>(null);
 
     const [formData, setFormData] = useState({
         name: "",
@@ -34,7 +37,7 @@ export function GroupManagement({ initialGroups, todoCounts, defaultGroupId }: {
 
     const handleCreate = async () => {
         if (!formData.name.trim()) {
-            alert("Group name is required");
+            toast.warning("Group name is required");
             return;
         }
 
@@ -55,7 +58,7 @@ export function GroupManagement({ initialGroups, todoCounts, defaultGroupId }: {
                 setFormData({ name: "", color: DEFAULT_COLORS[0], description: "" });
             } catch (error) {
                 console.error("Failed to create group:", error);
-                alert(error instanceof Error ? error.message : "Failed to create group");
+                toast.error(error instanceof Error ? error.message : "Failed to create group");
             }
         });
     };
@@ -71,7 +74,7 @@ export function GroupManagement({ initialGroups, todoCounts, defaultGroupId }: {
 
     const handleUpdate = async (groupId: number) => {
         if (!formData.name.trim()) {
-            alert("Group name is required");
+            toast.warning("Group name is required");
             return;
         }
 
@@ -92,26 +95,30 @@ export function GroupManagement({ initialGroups, todoCounts, defaultGroupId }: {
                 setFormData({ name: "", color: DEFAULT_COLORS[0], description: "" });
             } catch (error) {
                 console.error("Failed to update group:", error);
-                alert(error instanceof Error ? error.message : "Failed to update group");
+                toast.error(error instanceof Error ? error.message : "Failed to update group");
             }
         });
     };
 
-    const handleDelete = async (groupId: number) => {
-        if (!confirm("Are you sure you want to delete this group? Todos in this group will be moved to 'Uncategorized'.")) {
-            return;
-        }
+    const handleDeleteClick = (groupId: number) => {
+        setDeletingGroupId(groupId);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deletingGroupId) return;
 
         startTransition(async () => {
             try {
-                await deleteGroup(groupId);
+                await deleteGroup(deletingGroupId);
                 
                 // Refresh groups
                 const updatedGroups = await getGroups();
                 setGroups(updatedGroups.map(g => ({ ...g, todoCount: todoCounts?.[g.id] || 0 })));
+                setDeletingGroupId(null);
             } catch (error) {
                 console.error("Failed to delete group:", error);
-                alert(error instanceof Error ? error.message : "Failed to delete group");
+                toast.error(error instanceof Error ? error.message : "Failed to delete group");
+                setDeletingGroupId(null);
             }
         });
     };
@@ -132,7 +139,7 @@ export function GroupManagement({ initialGroups, todoCounts, defaultGroupId }: {
                 setGroups(updatedGroups.map(g => ({ ...g, todoCount: todoCounts?.[g.id] || 0 })));
             } catch (error) {
                 console.error("Failed to set default group:", error);
-                alert(error instanceof Error ? error.message : "Failed to set default group");
+                toast.error(error instanceof Error ? error.message : "Failed to set default group");
             }
         });
     };
@@ -346,7 +353,7 @@ export function GroupManagement({ initialGroups, todoCounts, defaultGroupId }: {
                                                 <Edit2 className="w-4 h-4" />
                                             </button>
                                             <button
-                                                onClick={() => handleDelete(group.id)}
+                                                onClick={() => handleDeleteClick(group.id)}
                                                 disabled={isPending}
                                                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                                                 aria-label="Delete group"
@@ -361,6 +368,17 @@ export function GroupManagement({ initialGroups, todoCounts, defaultGroupId }: {
                     </div>
                 )}
             </div>
+            <ConfirmationModal
+                isOpen={deletingGroupId !== null}
+                onClose={() => setDeletingGroupId(null)}
+                onConfirm={handleDeleteConfirm}
+                title="Delete Group"
+                message="Are you sure you want to delete this group? Todos in this group will be moved to 'Uncategorized'."
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+                isPending={isPending}
+            />
         </div>
     );
 }

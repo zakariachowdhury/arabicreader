@@ -6,6 +6,7 @@ import { createUnit, updateUnit, deleteUnit, updateUnitOrder } from "@/app/admin
 import { Edit2, Trash2, Save, X, Plus, BookOpen, GripVertical, ToggleLeft, ToggleRight } from "lucide-react";
 import { DeleteConfirmation } from "./DeleteConfirmation";
 import Link from "next/link";
+import { toast } from "@/lib/toast";
 import {
     DndContext,
     closestCenter,
@@ -228,14 +229,14 @@ export function UnitManagement({ initialUnits, bookId }: { initialUnits: Unit[];
                 setEditData(null);
             } catch (error) {
                 console.error("Failed to update unit:", error);
-                alert("Failed to update unit. Please try again.");
+                toast.error("Failed to update unit. Please try again.");
             }
         });
     };
 
     const handleCreate = async () => {
         if (!newUnit.title.trim()) {
-            alert("Title is required");
+            toast.warning("Title is required");
             return;
         }
 
@@ -250,7 +251,7 @@ export function UnitManagement({ initialUnits, bookId }: { initialUnits: Unit[];
                 setNewUnit({ title: "", order: units.length + 1 });
             } catch (error) {
                 console.error("Failed to create unit:", error);
-                alert("Failed to create unit. Please try again.");
+                toast.error("Failed to create unit. Please try again.");
             }
         });
     };
@@ -271,7 +272,7 @@ export function UnitManagement({ initialUnits, bookId }: { initialUnits: Unit[];
                 setDeletingId(null);
             } catch (error) {
                 console.error("Failed to delete unit:", error);
-                alert("Failed to delete unit. Please try again.");
+                toast.error("Failed to delete unit. Please try again.");
                 setDeletingId(null);
             }
         });
@@ -289,7 +290,7 @@ export function UnitManagement({ initialUnits, bookId }: { initialUnits: Unit[];
                 ));
             } catch (error) {
                 console.error("Failed to toggle unit enabled state:", error);
-                alert("Failed to update unit. Please try again.");
+                toast.error("Failed to update unit. Please try again.");
             }
         });
     };
@@ -310,7 +311,7 @@ export function UnitManagement({ initialUnits, bookId }: { initialUnits: Unit[];
                     await updateUnitOrder(newUnits.map((u) => u.id));
                 } catch (error) {
                     console.error("Failed to update unit order:", error);
-                    alert("Failed to update unit order. Please try again.");
+                    toast.error("Failed to update unit order. Please try again.");
                     // Revert on error
                     setUnits(units);
                 }

@@ -5,6 +5,8 @@ import { getUserChatSessions, deleteChatSession, updateChatSessionTitle, searchC
 import type { ChatSession } from "@/db/schema";
 import { Plus, Search, Trash2, Edit2, X, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "@/lib/toast";
+import { ConfirmationModal } from "@/components/ConfirmationModal";
 
 interface ChatSidebarProps {
     activeSessionId: number | null;
@@ -18,6 +20,7 @@ export function ChatSidebar({ activeSessionId, onNewChat, onSelectSession }: Cha
     const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
     const [editTitle, setEditTitle] = useState("");
     const [isLoading, setIsLoading] = useState(true);
+    const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
     const router = useRouter();
 
     useEffect(() => {
@@ -49,20 +52,26 @@ export function ChatSidebar({ activeSessionId, onNewChat, onSelectSession }: Cha
         return () => clearTimeout(timeoutId);
     }, [searchQuery]);
 
-    const handleDelete = async (sessionId: number, e: React.MouseEvent) => {
+    const handleDeleteClick = (sessionId: number, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (confirm("Are you sure you want to delete this chat session?")) {
-            try {
-                await deleteChatSession(sessionId);
-                if (activeSessionId === sessionId) {
-                    onNewChat();
-                }
-                loadSessions();
-                router.refresh();
-            } catch (error) {
-                console.error("Failed to delete session:", error);
-                alert("Failed to delete session. Please try again.");
+        setDeletingSessionId(sessionId);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deletingSessionId) return;
+        
+        try {
+            await deleteChatSession(deletingSessionId);
+            if (activeSessionId === deletingSessionId) {
+                onNewChat();
             }
+            setDeletingSessionId(null);
+            loadSessions();
+            router.refresh();
+        } catch (error) {
+            console.error("Failed to delete session:", error);
+            toast.error("Failed to delete session. Please try again.");
+            setDeletingSessionId(null);
         }
     };
 
@@ -82,7 +91,7 @@ export function ChatSidebar({ activeSessionId, onNewChat, onSelectSession }: Cha
             router.refresh();
         } catch (error) {
             console.error("Failed to update session title:", error);
-            alert("Failed to update title. Please try again.");
+            toast.error("Failed to update title. Please try again.");
         }
     };
 
@@ -205,7 +214,7 @@ export function ChatSidebar({ activeSessionId, onNewChat, onSelectSession }: Cha
                                                     <Edit2 className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button
-                                                    onClick={(e) => handleDelete(session.id, e)}
+                                                    onClick={(e) => handleDeleteClick(session.id, e)}
                                                     className="p-1.5 text-slate-400 hover:text-red-600 rounded transition-colors"
                                                     title="Delete"
                                                 >
@@ -220,6 +229,16 @@ export function ChatSidebar({ activeSessionId, onNewChat, onSelectSession }: Cha
                     </div>
                 )}
             </div>
+            <ConfirmationModal
+                isOpen={deletingSessionId !== null}
+                onClose={() => setDeletingSessionId(null)}
+                onConfirm={handleDeleteConfirm}
+                title="Delete Chat Session"
+                message="Are you sure you want to delete this chat session? This action cannot be undone."
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+            />
         </div>
     );
 }

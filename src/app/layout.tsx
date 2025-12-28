@@ -6,6 +6,7 @@ import { Footer } from "@/components/Footer";
 import { FloatingAIChat } from "@/components/FloatingAIChat";
 import { ArabicFontSizeProvider } from "@/contexts/ArabicFontSizeContext";
 import { FontLoader } from "@/components/FontLoader";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,6 +43,7 @@ export default function RootLayout({
           </div>
           <Footer />
           <FloatingAIChat />
+          <Toaster position="top-right" />
         </ArabicFontSizeProvider>
       </body>
     </html>
