@@ -36,7 +36,7 @@ function generateMultipleChoiceOptions(
 }
 
 export function VocabularyFlashcards({ words, initialProgress, lessonId, initialMode = "learn" }: VocabularyFlashcardsProps) {
-    const { getArabicFontSize, getEnglishFontSize } = useArabicFontSize();
+    const { getArabicFontSize, getEnglishFontSize, getArabicFontStyle } = useArabicFontSize();
     const [mode, setMode] = useState<Mode>(initialMode);
     // Separate indices for each mode
     const [learnIndex, setLearnIndex] = useState(0);
@@ -644,7 +644,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                     )}
                                 </button>
                             </div>
-                            <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-4xl") }}>
+                            <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-4xl"), ...getArabicFontStyle() }}>
                                 {currentWord.arabic}
                             </p>
                         </div>
@@ -711,7 +711,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                         )}
                                     </button>
                                 </div>
-                                <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-4xl") }}>
+                                <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-4xl"), ...getArabicFontStyle() }}>
                                     {currentWord.arabic}
                                 </p>
                                 <p className="text-sm text-slate-400 mt-4">Click to reveal answer</p>
@@ -818,7 +818,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                                         )}
                                                     </button>
                                                 </div>
-                                                <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-3xl") }}>
+                                                <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-3xl"), ...getArabicFontStyle() }}>
                                                     {currentWord.arabic}
                                                 </p>
                                             </div>
@@ -961,7 +961,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                         )}
                                         <div className="flex-1">
                                             <div className="flex items-center gap-3 mb-2">
-                                                <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-2xl") }}>
+                                                <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-2xl"), ...getArabicFontStyle() }}>
                                                     {word.arabic}
                                                 </p>
                                                 <button

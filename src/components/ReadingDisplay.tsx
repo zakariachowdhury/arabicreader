@@ -60,7 +60,7 @@ function playAudio(text: string, lang: string = "en-US", onEnd?: () => void) {
 }
 
 export function ReadingDisplay({ sentences }: ReadingDisplayProps) {
-    const { getArabicFontSize } = useArabicFontSize();
+    const { getArabicFontSize, getArabicFontStyle } = useArabicFontSize();
     const [showTranslations, setShowTranslations] = useState(true);
     const [selectedLanguage, setSelectedLanguage] = useState<Language>("arabic");
     const [playingSentenceId, setPlayingSentenceId] = useState<number | null>(null);
@@ -428,7 +428,7 @@ export function ReadingDisplay({ sentences }: ReadingDisplayProps) {
                                                         : "text-slate-900"
                                                 }`}
                                                 dir="rtl"
-                                                style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg") }}
+                                                style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg"), ...getArabicFontStyle() }}
                                             >
                                                 {sentence.arabic}
                                             </div>

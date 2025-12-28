@@ -240,3 +240,57 @@ export async function updateEnglishFontSizeMultiplier(multiplier: number) {
     }
 }
 
+export async function getArabicFontFamily(): Promise<string> {
+    const session = await getSession();
+    if (!session) {
+        return "Scheherazade New"; // Default value
+    }
+
+    try {
+        const [userData] = await db
+            .select({ arabicFontFamily: user.arabicFontFamily })
+            .from(user)
+            .where(eq(user.id, session.user.id))
+            .limit(1);
+
+        return userData?.arabicFontFamily ?? "Scheherazade New";
+    } catch (error) {
+        console.error("Failed to fetch Arabic font family:", error);
+        return "Scheherazade New"; // Default value on error
+    }
+}
+
+export async function updateArabicFontFamily(fontFamily: string) {
+    const session = await getSession();
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+
+    // Validate font family (allow only predefined fonts)
+    const allowedFonts = ["Amiri", "Cairo", "Tajawal", "Noto Sans Arabic", "Scheherazade New", "Almarai", "Changa", "IBM Plex Sans Arabic", "El Messiri", "Markazi Text"];
+    if (!allowedFonts.includes(fontFamily)) {
+        throw new Error("Invalid font family");
+    }
+
+    try {
+        await db
+            .update(user)
+            .set({
+                arabicFontFamily: fontFamily,
+                updatedAt: new Date(),
+            })
+            .where(eq(user.id, session.user.id));
+
+        revalidatePath("/settings");
+        return { error: null };
+    } catch (error) {
+        console.error("Failed to update Arabic font family:", error);
+        const errorMessage = error instanceof Error ? error.message : "Failed to update Arabic font family";
+        return {
+            error: {
+                message: errorMessage,
+            },
+        };
+    }
+}
+

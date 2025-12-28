@@ -11,6 +11,7 @@ export const user = pgTable("user", {
     defaultGroupId: integer("default_group_id"),
     arabicFontSizeMultiplier: real("arabic_font_size_multiplier").default(1.5).notNull(),
     englishFontSizeMultiplier: real("english_font_size_multiplier").default(1.0).notNull(),
+    arabicFontFamily: text("arabic_font_family").default("Scheherazade New").notNull(),
     createdAt: timestamp("created_at").notNull(),
     updatedAt: timestamp("updated_at").notNull(),
 });

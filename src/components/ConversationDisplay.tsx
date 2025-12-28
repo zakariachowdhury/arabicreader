@@ -60,7 +60,7 @@ function playAudio(text: string, lang: string = "en-US", onEnd?: () => void) {
 }
 
 export function ConversationDisplay({ sentences }: ConversationDisplayProps) {
-    const { getArabicFontSize } = useArabicFontSize();
+    const { getArabicFontSize, getArabicFontStyle } = useArabicFontSize();
     const [showTranslations, setShowTranslations] = useState(true);
     const [selectedLanguage, setSelectedLanguage] = useState<Language>("arabic");
     const [playingSentenceId, setPlayingSentenceId] = useState<number | null>(null);
@@ -451,7 +451,7 @@ export function ConversationDisplay({ sentences }: ConversationDisplayProps) {
                                                         : "text-slate-900"
                                                 }`}
                                                 dir="rtl"
-                                                style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg") }}
+                                                style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg"), ...getArabicFontStyle() }}
                                             >
                                                 {sentence.arabic}
                                             </div>
@@ -516,7 +516,7 @@ export function ConversationDisplay({ sentences }: ConversationDisplayProps) {
                                                             : "text-slate-900"
                                                     }`}
                                                     dir="rtl"
-                                                    style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg") }}
+                                                    style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg"), ...getArabicFontStyle() }}
                                                 >
                                                     {sentence.arabic}
                                                 </div>
@@ -592,7 +592,7 @@ export function ConversationDisplay({ sentences }: ConversationDisplayProps) {
                                                             : "text-slate-900"
                                                     }`}
                                                     dir="rtl"
-                                                    style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg") }}
+                                                    style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg"), ...getArabicFontStyle() }}
                                                 >
                                                     {sentence.arabic}
                                                 </div>

@@ -89,7 +89,7 @@ function ReadingRow({ sentence, editingId, editData, isPending, deletingId, onEd
     playingAudio: string | null;
     setPlayingAudio: (key: string | null) => void;
 }) {
-    const { getArabicFontSize } = useArabicFontSize();
+    const { getArabicFontSize, getArabicFontStyle } = useArabicFontSize();
     const handlePlayArabic = () => {
         const audioKey = `arabic-${sentence.id}`;
         if (playingAudio === audioKey) {
@@ -133,7 +133,7 @@ function ReadingRow({ sentence, editingId, editData, isPending, deletingId, onEd
                     />
                 ) : (
                     <div className="flex items-center gap-2" dir="rtl">
-                        <div className={`font-medium flex-1 ${sentence.isTitle ? "text-red-700 font-bold" : "text-slate-900"}`} style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg") }}>
+                        <div className={`font-medium flex-1 ${sentence.isTitle ? "text-red-700 font-bold" : "text-slate-900"}`} style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg"), ...getArabicFontStyle() }}>
                             {sentence.arabic}
                             {sentence.isTitle && <span className="ml-2 text-xs text-red-500">(Title)</span>}
                         </div>
@@ -260,7 +260,7 @@ function SortableReadingRow({ sentence, editingId, editData, isPending, deleting
     playingAudio: string | null;
     setPlayingAudio: (key: string | null) => void;
 }) {
-    const { getArabicFontSize } = useArabicFontSize();
+    const { getArabicFontSize, getArabicFontStyle } = useArabicFontSize();
     const handlePlayArabic = () => {
         const audioKey = `arabic-${sentence.id}`;
         if (playingAudio === audioKey) {
@@ -327,7 +327,7 @@ function SortableReadingRow({ sentence, editingId, editData, isPending, deleting
                     />
                 ) : (
                     <div className="flex items-center gap-2" dir="rtl">
-                        <div className={`font-medium flex-1 ${sentence.isTitle ? "text-red-700 font-bold" : "text-slate-900"}`} style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg") }}>
+                        <div className={`font-medium flex-1 ${sentence.isTitle ? "text-red-700 font-bold" : "text-slate-900"}`} style={{ fontSize: getArabicFontSize(sentence.isTitle ? "text-xl" : "text-lg"), ...getArabicFontStyle() }}>
                             {sentence.arabic}
                             {sentence.isTitle && <span className="ml-2 text-xs text-red-500">(Title)</span>}
                         </div>

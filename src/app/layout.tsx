@@ -5,6 +5,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { FloatingAIChat } from "@/components/FloatingAIChat";
 import { ArabicFontSizeProvider } from "@/contexts/ArabicFontSizeContext";
+import { FontLoader } from "@/components/FontLoader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col bg-white text-slate-900`}
       >
+        <FontLoader />
         <ArabicFontSizeProvider>
           <Navbar />
           <div className="flex-1">

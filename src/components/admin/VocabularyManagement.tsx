@@ -89,7 +89,7 @@ function VocabularyRow({ word, editingId, editData, isPending, deletingId, onEdi
     playingAudio: string | null;
     setPlayingAudio: (key: string | null) => void;
 }) {
-    const { getArabicFontSize } = useArabicFontSize();
+    const { getArabicFontSize, getArabicFontStyle } = useArabicFontSize();
     const handlePlayArabic = () => {
         const audioKey = `arabic-${word.id}`;
         if (playingAudio === audioKey) {
@@ -137,7 +137,7 @@ function VocabularyRow({ word, editingId, editData, isPending, deletingId, onEdi
                     />
                 ) : (
                     <div className="flex items-center gap-2" dir="rtl">
-                        <div className="font-medium text-slate-900 flex-1" style={{ fontSize: getArabicFontSize("text-lg") }}>{word.arabic}</div>
+                        <div className="font-medium text-slate-900 flex-1" style={{ fontSize: getArabicFontSize("text-lg"), ...getArabicFontStyle() }}>{word.arabic}</div>
                         <button
                             onClick={handlePlayArabic}
                             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -247,7 +247,7 @@ function SortableVocabularyRow({ word, editingId, editData, isPending, deletingI
     playingAudio: string | null;
     setPlayingAudio: (key: string | null) => void;
 }) {
-    const { getArabicFontSize } = useArabicFontSize();
+    const { getArabicFontSize, getArabicFontStyle } = useArabicFontSize();
     const handlePlayArabic = () => {
         const audioKey = `arabic-${word.id}`;
         if (playingAudio === audioKey) {
@@ -318,7 +318,7 @@ function SortableVocabularyRow({ word, editingId, editData, isPending, deletingI
                     />
                 ) : (
                     <div className="flex items-center gap-2" dir="rtl">
-                        <div className="font-medium text-slate-900 flex-1" style={{ fontSize: getArabicFontSize("text-lg") }}>{word.arabic}</div>
+                        <div className="font-medium text-slate-900 flex-1" style={{ fontSize: getArabicFontSize("text-lg"), ...getArabicFontStyle() }}>{word.arabic}</div>
                         <button
                             onClick={handlePlayArabic}
                             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

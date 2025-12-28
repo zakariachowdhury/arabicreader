@@ -11,11 +11,12 @@ import { useArabicFontSize } from "@/contexts/ArabicFontSizeContext";
 type SettingsTab = "profile" | "display" | "password" | "danger" | "admin";
 
 function DisplaySettings() {
-    const { arabicFontSizeMultiplier, englishFontSizeMultiplier, setArabicFontSizeMultiplier, setEnglishFontSizeMultiplier, getArabicFontSize, getEnglishFontSize, isLoading } = useArabicFontSize();
+    const { arabicFontSizeMultiplier, englishFontSizeMultiplier, arabicFontFamily, setArabicFontSizeMultiplier, setEnglishFontSizeMultiplier, setArabicFontFamily, getArabicFontSize, getEnglishFontSize, getArabicFontStyle, isLoading } = useArabicFontSize();
     const [saveError, setSaveError] = useState<string | null>(null);
     // Local state for immediate visual feedback while dragging
     const [localArabicValue, setLocalArabicValue] = useState(arabicFontSizeMultiplier);
     const [localEnglishValue, setLocalEnglishValue] = useState(englishFontSizeMultiplier);
+    const [localFontFamily, setLocalFontFamily] = useState(arabicFontFamily);
 
     // Sync local state when context values change (e.g., after loading from DB)
     useEffect(() => {
@@ -25,6 +26,10 @@ function DisplaySettings() {
     useEffect(() => {
         setLocalEnglishValue(englishFontSizeMultiplier);
     }, [englishFontSizeMultiplier]);
+
+    useEffect(() => {
+        setLocalFontFamily(arabicFontFamily);
+    }, [arabicFontFamily]);
 
     const handleArabicChange = (value: number) => {
         // Update local state immediately for visual feedback
@@ -58,6 +63,34 @@ function DisplaySettings() {
         }
     };
 
+    const handleFontFamilyChange = async (fontFamily: string) => {
+        setLocalFontFamily(fontFamily);
+        try {
+            await setArabicFontFamily(fontFamily);
+            setSaveError(null);
+        } catch (error) {
+            setSaveError(error instanceof Error ? error.message : "Failed to save Arabic font family");
+            // Revert local state on error
+            setLocalFontFamily(arabicFontFamily);
+        }
+    };
+
+    const availableFonts = [
+        { value: "Almarai", label: "Almarai" },
+        { value: "Amiri", label: "Amiri" },
+        { value: "Cairo", label: "Cairo" },
+        { value: "Changa", label: "Changa" },
+        { value: "El Messiri", label: "El Messiri" },
+        { value: "IBM Plex Sans Arabic", label: "IBM Plex Sans Arabic" },
+        { value: "Markazi Text", label: "Markazi Text" },
+        { value: "Noto Sans Arabic", label: "Noto Sans Arabic" },
+        { value: "Scheherazade New", label: "Scheherazade New" },
+        { value: "Tajawal", label: "Tajawal" },
+    ];
+
+    // Arabic text with harakat (diacritics) for preview
+    const previewText = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ";
+
     // Helper function to calculate font size for preview using local values
     const getPreviewFontSize = (baseSize: string, multiplier: number): string => {
         const sizeMap: Record<string, number> = {
@@ -85,6 +118,54 @@ function DisplaySettings() {
             </div>
 
             <div className="space-y-6">
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+                        Arabic Font Family
+                    </label>
+                    <div className="space-y-3">
+                        {availableFonts.map((font) => {
+                            const isSelected = localFontFamily === font.value;
+                            return (
+                                <button
+                                    key={font.value}
+                                    onClick={() => handleFontFamilyChange(font.value)}
+                                    disabled={isLoading}
+                                    className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                                        isSelected
+                                            ? "border-blue-600 bg-blue-50 shadow-md"
+                                            : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/50"
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                >
+                                    <div className="flex items-center justify-between gap-4">
+                                        <span className={`text-base font-semibold flex-shrink-0 ${
+                                            isSelected ? "text-blue-900" : "text-slate-900"
+                                        }`}>
+                                            {font.label}
+                                        </span>
+                                        {isSelected && (
+                                            <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                                        )}
+                                        <div
+                                            className="flex-1 text-right p-3 bg-slate-50 rounded border border-slate-100"
+                                            dir="rtl"
+                                            style={{
+                                                fontSize: "1.5rem", // Fixed size, not dependent on multiplier
+                                                fontFamily: `"${font.value}", "Amiri", serif`,
+                                                textAlign: "right",
+                                            }}
+                                        >
+                                            <span className="font-bold text-slate-900">{previewText}</span>
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-4">
+                        Choose your preferred Arabic font. The font will be applied to all Arabic text throughout the application.
+                    </p>
+                </div>
+
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
                         Arabic Font Size Multiplier
@@ -164,11 +245,15 @@ function DisplaySettings() {
                             <div className="flex items-center gap-4">
                                 <span className="text-sm text-slate-600 min-w-[120px]">Arabic ({localArabicValue.toFixed(1)}x):</span>
                                 <div
-                                    className="flex-1 text-center p-4 bg-white rounded-lg border border-slate-200"
+                                    className="flex-1 text-right p-4 bg-white rounded-lg border border-slate-200"
                                     dir="rtl"
-                                    style={{ fontSize: getPreviewFontSize("text-3xl", localArabicValue) }}
+                                    style={{
+                                        fontSize: getPreviewFontSize("text-3xl", localArabicValue),
+                                        fontFamily: `"${localFontFamily}", "Amiri", serif`,
+                                        textAlign: "right",
+                                    }}
                                 >
-                                    <span className="font-bold text-slate-900">اللغة العربية</span>
+                                    <span className="font-bold text-slate-900">{previewText}</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-4">

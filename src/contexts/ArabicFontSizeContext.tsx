@@ -1,15 +1,18 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { getArabicFontSizeMultiplier, updateArabicFontSizeMultiplier, getEnglishFontSizeMultiplier, updateEnglishFontSizeMultiplier } from "@/app/settings/actions";
+import { getArabicFontSizeMultiplier, updateArabicFontSizeMultiplier, getEnglishFontSizeMultiplier, updateEnglishFontSizeMultiplier, getArabicFontFamily, updateArabicFontFamily } from "@/app/settings/actions";
 
 interface FontSizeContextType {
     arabicFontSizeMultiplier: number;
     englishFontSizeMultiplier: number;
+    arabicFontFamily: string;
     setArabicFontSizeMultiplier: (multiplier: number) => void;
     setEnglishFontSizeMultiplier: (multiplier: number) => void;
+    setArabicFontFamily: (fontFamily: string) => void;
     getArabicFontSize: (baseSize: string) => string;
     getEnglishFontSize: (baseSize: string) => string;
+    getArabicFontStyle: () => React.CSSProperties;
     isLoading: boolean;
 }
 
@@ -17,10 +20,12 @@ const FontSizeContext = createContext<FontSizeContextType | undefined>(undefined
 
 const DEFAULT_ARABIC_MULTIPLIER = 1.5; // Default to 1.5x larger for Arabic text
 const DEFAULT_ENGLISH_MULTIPLIER = 1.0; // Default to 1.0x for English text
+const DEFAULT_ARABIC_FONT_FAMILY = "Scheherazade New"; // Default Arabic font
 
 export function ArabicFontSizeProvider({ children }: { children: ReactNode }) {
     const [arabicFontSizeMultiplier, setArabicFontSizeMultiplierState] = useState<number>(DEFAULT_ARABIC_MULTIPLIER);
     const [englishFontSizeMultiplier, setEnglishFontSizeMultiplierState] = useState<number>(DEFAULT_ENGLISH_MULTIPLIER);
+    const [arabicFontFamily, setArabicFontFamilyState] = useState<string>(DEFAULT_ARABIC_FONT_FAMILY);
     const [isMounted, setIsMounted] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -29,12 +34,14 @@ export function ArabicFontSizeProvider({ children }: { children: ReactNode }) {
         setIsMounted(true);
         async function loadFontSizes() {
             try {
-                const [arabicMultiplier, englishMultiplier] = await Promise.all([
+                const [arabicMultiplier, englishMultiplier, fontFamily] = await Promise.all([
                     getArabicFontSizeMultiplier(),
                     getEnglishFontSizeMultiplier(),
+                    getArabicFontFamily(),
                 ]);
                 setArabicFontSizeMultiplierState(arabicMultiplier);
                 setEnglishFontSizeMultiplierState(englishMultiplier);
+                setArabicFontFamilyState(fontFamily);
             } catch (error) {
                 console.error("Failed to load font sizes:", error);
                 // Keep default values on error
@@ -121,6 +128,32 @@ export function ArabicFontSizeProvider({ children }: { children: ReactNode }) {
         return getFontSize(baseSize, englishFontSizeMultiplier);
     };
 
+    const setArabicFontFamily = async (fontFamily: string) => {
+        const previousValue = arabicFontFamily;
+        
+        // Optimistically update UI
+        setArabicFontFamilyState(fontFamily);
+        
+        // Save to database
+        try {
+            const result = await updateArabicFontFamily(fontFamily);
+            if (result.error) {
+                throw new Error(result.error.message);
+            }
+        } catch (error) {
+            console.error("Failed to save Arabic font family:", error);
+            // Revert on error
+            setArabicFontFamilyState(previousValue);
+            throw error; // Re-throw so caller can handle it
+        }
+    };
+
+    const getArabicFontStyle = (): React.CSSProperties => {
+        return {
+            fontFamily: `"${arabicFontFamily}", "Amiri", "Scheherazade New", serif`,
+        };
+    };
+
     // Always provide the context, even before mounted, to avoid errors
     // The default values will be used until the actual values are loaded
     return (
@@ -128,10 +161,13 @@ export function ArabicFontSizeProvider({ children }: { children: ReactNode }) {
             value={{
                 arabicFontSizeMultiplier,
                 englishFontSizeMultiplier,
+                arabicFontFamily,
                 setArabicFontSizeMultiplier,
                 setEnglishFontSizeMultiplier,
+                setArabicFontFamily,
                 getArabicFontSize,
                 getEnglishFontSize,
+                getArabicFontStyle,
                 isLoading,
             }}
         >
