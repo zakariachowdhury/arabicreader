@@ -2,3 +2,4 @@
 ALTER TABLE "user" ADD COLUMN "english_font_size_multiplier" real DEFAULT 1.0 NOT NULL;
 
 
+

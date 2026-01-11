@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition, useRef } from "react";
 import { VocabularyWord, UserProgress } from "@/db/schema";
 import { updateUserProgress } from "@/app/actions";
-import { BookOpen, ChevronLeft, ChevronRight, RotateCcw, CheckCircle2, XCircle, Eye, Volume2, VolumeX, Volume1, VolumeOff } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, RotateCcw, CheckCircle2, XCircle, Eye, Volume2, VolumeX, Volume1, VolumeOff, ArrowRight } from "lucide-react";
 import { useArabicFontSize } from "@/contexts/ArabicFontSizeContext";
 import { toast } from "@/lib/toast";
 
@@ -50,6 +50,12 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
     const [testSubmitted, setTestSubmitted] = useState(false);
     const [answeredWords, setAnsweredWords] = useState<Set<number>>(new Set());
     const [progress, setProgress] = useState(initialProgress);
+    // Practice mode tracking
+    const [practiceResults, setPracticeResults] = useState<Record<number, boolean>>({});
+    const [practiceCompleted, setPracticeCompleted] = useState(false);
+    const [practicedWords, setPracticedWords] = useState<Set<number>>(new Set());
+    const [showSummary, setShowSummary] = useState(false);
+    const [summaryDismissed, setSummaryDismissed] = useState(false);
     const [, startTransition] = useTransition();
     const [speaking, setSpeaking] = useState<{ arabic: boolean; english: boolean }>({ arabic: false, english: false });
     const autoAdvanceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -287,6 +293,15 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
     const handlePracticeAnswer = (correct: boolean) => {
         if (!currentWord) return;
 
+        // Track practice result
+        setPracticeResults(prev => ({ ...prev, [currentWord.id]: correct }));
+        const newPracticedWords = new Set(practicedWords);
+        newPracticedWords.add(currentWord.id);
+        setPracticedWords(newPracticedWords);
+
+        // Check if all words have been practiced
+        const allWordsPracticed = newPracticedWords.size === words.length;
+
         startTransition(async () => {
             try {
                 await updateUserProgress(currentWord.id, {
@@ -313,6 +328,79 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                 console.error("Failed to update progress:", error);
             }
         });
+
+        // If all words have been practiced, automatically show summary
+        if (allWordsPracticed) {
+            setTimeout(() => {
+                setPracticeCompleted(true);
+                setShowSummary(true);
+                // Scroll to top to show summary
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 300);
+        }
+    };
+
+    // Check if practice is complete
+    useEffect(() => {
+        if (mode === "practice" && words.length > 0) {
+            const allPracticed = words.every(word => practicedWords.has(word.id));
+            if (allPracticed && !practiceCompleted) {
+                setPracticeCompleted(true);
+            }
+        }
+    }, [mode, practicedWords, words, practiceCompleted]);
+
+    // Calculate saved progress status (moved before useEffect to avoid conditional hook)
+    const hasAnySavedProgress = words.some(word => {
+        const wordProgress = progress[word.id];
+        return wordProgress && (wordProgress.correctCount > 0 || wordProgress.incorrectCount > 0);
+    });
+
+    // Auto-show summary when entering practice mode if there's saved progress
+    // Only auto-show if user hasn't explicitly dismissed it
+    useEffect(() => {
+        if (mode === "practice" && hasAnySavedProgress && !showSummary && !summaryDismissed && Object.keys(practiceResults).length === 0) {
+            // Show summary first if user has saved progress
+            setShowSummary(true);
+            // Scroll to top to show summary
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }, [mode, hasAnySavedProgress, showSummary, summaryDismissed, practiceResults, words, progress]);
+
+    // Reset practice tracking when entering practice mode fresh (only if explicitly reset)
+    // Don't auto-reset when switching modes - keep results visible
+
+    const handlePracticeReset = () => {
+        setPracticeResults({});
+        setPracticeCompleted(false);
+        setPracticedWords(new Set());
+        setPracticeIndex(0);
+        setIsFlipped(false);
+        setShowSummary(false);
+        setSummaryDismissed(true); // Mark summary as dismissed to prevent auto-show
+    };
+
+    const handleJumpToWord = (wordId: number) => {
+        const wordIndex = words.findIndex(w => w.id === wordId);
+        if (wordIndex !== -1) {
+            setPracticeIndex(wordIndex);
+            setIsFlipped(false);
+            // Remove from practiced words so they can practice it again
+            setPracticedWords(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(wordId);
+                return newSet;
+            });
+            // Remove the result so it can be updated when they answer again
+            setPracticeResults(prev => {
+                const newResults = { ...prev };
+                delete newResults[wordId];
+                return newResults;
+            });
+            setPracticeCompleted(false);
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
     // Sound effect functions
@@ -486,6 +574,41 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
 
     const correctCount = Object.values(testResults).filter(r => r).length;
 
+    // Helper function to determine word status from saved progress
+    const getWordStatusFromProgress = (wordId: number): boolean | null => {
+        const wordProgress = progress[wordId];
+        if (!wordProgress) return null;
+        
+        // If word has been practiced (has correct or incorrect counts)
+        if (wordProgress.correctCount > 0 || wordProgress.incorrectCount > 0) {
+            // Consider word as "correct" if correctCount >= incorrectCount, otherwise "incorrect"
+            return wordProgress.correctCount >= wordProgress.incorrectCount;
+        }
+        return null;
+    };
+
+    // Merge current session results with saved progress
+    const getAllWordResults = (): Record<number, boolean> => {
+        const results: Record<number, boolean> = {};
+        
+        // First, add current session results
+        Object.assign(results, practiceResults);
+        
+        // Then, add saved progress for words not in current session
+        words.forEach(word => {
+            if (!(word.id in results)) {
+                const status = getWordStatusFromProgress(word.id);
+                if (status !== null) {
+                    results[word.id] = status;
+                }
+            }
+        });
+        
+        return results;
+    };
+
+    const allWordResults = getAllWordResults();
+
     return (
         <div className="max-w-4xl mx-auto">
             {/* Mode Selector */}
@@ -511,6 +634,11 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                             setMode("practice");
                             setIsFlipped(false);
                             setTestSubmitted(false);
+                            // Reset summary dismissed flag when switching to practice mode
+                            // so summary can auto-show if there's saved progress
+                            setSummaryDismissed(false);
+                            // Don't reset practice results - keep them visible so user can view summary
+                            // Only reset if explicitly requested via Reset button
                             // Index is already tracked separately, no need to reset
                         }}
                         className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 ${
@@ -673,7 +801,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
             )}
 
             {/* Practice Mode */}
-            {mode === "practice" && currentWord && (
+            {mode === "practice" && !showSummary && currentWord && (
                 <div className="flashcard-container flex flex-col items-center justify-center relative">
                     <div className="absolute top-4 right-4 z-10">
                         <button
@@ -1014,8 +1142,228 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                 </div>
             )}
 
+            {/* Practice Summary - Always accessible in practice mode when there's any progress */}
+            {mode === "practice" && showSummary && (Object.keys(practiceResults).length > 0 || hasAnySavedProgress) && (
+                <div className="space-y-6">
+                    <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 text-center">
+                        <h3 className="text-2xl font-bold text-slate-900 mb-4">
+                            {practiceCompleted ? "Practice Complete!" : "Practice Summary"}
+                        </h3>
+                        <div className="flex items-center justify-center gap-8 mb-4">
+                            <div className="flex items-center gap-2">
+                                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                                <span className="text-3xl font-extrabold text-emerald-600">
+                                    {Object.values(allWordResults).filter(r => r === true).length}
+                                </span>
+                                <span className="text-slate-600">Correct</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <XCircle className="w-6 h-6 text-red-600" />
+                                <span className="text-3xl font-extrabold text-red-600">
+                                    {Object.values(allWordResults).filter(r => r === false).length}
+                                </span>
+                                <span className="text-slate-600">Incorrect</span>
+                            </div>
+                        </div>
+                        <p className="text-slate-600 mb-6">
+                            {Object.keys(allWordResults).length > 0 && (
+                                <>
+                                    {Math.round((Object.values(allWordResults).filter(r => r === true).length / Object.keys(allWordResults).length) * 100)}% Accuracy
+                                    <span className="text-slate-400 ml-2">
+                                        ({Object.keys(allWordResults).length} of {words.length} words)
+                                    </span>
+                                </>
+                            )}
+                        </p>
+                        {/* Practice Again Button */}
+                        <div className="flex justify-center mt-6">
+                            <button
+                                onClick={() => {
+                                    setSummaryDismissed(true); // Mark as dismissed first
+                                    handlePracticeReset();
+                                    // Scroll to top to show practice view
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg flex items-center gap-2"
+                            >
+                                <RotateCcw className="w-5 h-5" />
+                                Practice Again
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Incorrect Words Group - Show first */}
+                    {Object.values(allWordResults).some(r => r === false) && (
+                        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
+                            <h4 className="text-xl font-bold text-red-700 mb-4 flex items-center gap-2">
+                                <XCircle className="w-6 h-6" />
+                                Incorrect ({Object.values(allWordResults).filter(r => r === false).length})
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {words
+                                    .filter(word => allWordResults[word.id] === false)
+                                    .map((word) => {
+                                        const wordProgress = progress[word.id];
+                                        const isFromCurrentSession = word.id in practiceResults;
+                                        return (
+                                        <div
+                                            key={word.id}
+                                            className="bg-red-50 border border-red-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-xl"), ...getArabicFontStyle() }}>
+                                                            {word.arabic}
+                                                        </p>
+                                                        <button
+                                                            onClick={() => speakText(word.arabic, "ar", "arabic")}
+                                                            className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                                            title="Listen to Arabic pronunciation"
+                                                        >
+                                                            {speaking.arabic ? (
+                                                                <VolumeX className="w-4 h-4" />
+                                                            ) : (
+                                                                <Volume2 className="w-4 h-4" />
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-lg text-slate-700 font-semibold">{word.english}</p>
+                                                    {wordProgress && (wordProgress.correctCount > 0 || wordProgress.incorrectCount > 0) && (
+                                                        <p className="text-xs text-slate-500 mt-1">
+                                                            {wordProgress.correctCount} correct, {wordProgress.incorrectCount} incorrect
+                                                            {isFromCurrentSession && " (this session)"}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => handleJumpToWord(word.id)}
+                                                    className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    title="Review this word"
+                                                >
+                                                    <ArrowRight className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                    })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Correct Words Group - Show after incorrect words */}
+                    {Object.values(allWordResults).some(r => r === true) && (
+                        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
+                            <h4 className="text-xl font-bold text-emerald-700 mb-4 flex items-center gap-2">
+                                <CheckCircle2 className="w-6 h-6" />
+                                Correct ({Object.values(allWordResults).filter(r => r === true).length})
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {words
+                                    .filter(word => allWordResults[word.id] === true)
+                                    .map((word) => {
+                                        const wordProgress = progress[word.id];
+                                        const isFromCurrentSession = word.id in practiceResults;
+                                        return (
+                                        <div
+                                            key={word.id}
+                                            className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-xl"), ...getArabicFontStyle() }}>
+                                                            {word.arabic}
+                                                        </p>
+                                                        <button
+                                                            onClick={() => speakText(word.arabic, "ar", "arabic")}
+                                                            className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                                            title="Listen to Arabic pronunciation"
+                                                        >
+                                                            {speaking.arabic ? (
+                                                                <VolumeX className="w-4 h-4" />
+                                                            ) : (
+                                                                <Volume2 className="w-4 h-4" />
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-lg text-slate-700 font-semibold">{word.english}</p>
+                                                    {wordProgress && (wordProgress.correctCount > 0 || wordProgress.incorrectCount > 0) && (
+                                                        <p className="text-xs text-slate-500 mt-1">
+                                                            {wordProgress.correctCount} correct, {wordProgress.incorrectCount} incorrect
+                                                            {isFromCurrentSession && " (this session)"}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => handleJumpToWord(word.id)}
+                                                    className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    title="Review this word"
+                                                >
+                                                    <ArrowRight className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                    })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Unpracticed Words Group - Show words that haven't been practiced yet */}
+                    {words.some(word => !(word.id in allWordResults)) && (
+                        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
+                            <h4 className="text-xl font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                <BookOpen className="w-6 h-6" />
+                                Not Yet Practiced ({words.filter(word => !(word.id in allWordResults)).length})
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {words
+                                    .filter(word => !(word.id in allWordResults))
+                                    .map((word) => (
+                                        <div
+                                            key={word.id}
+                                            className="bg-slate-50 border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <p className="font-bold text-slate-900" dir="rtl" style={{ fontSize: getArabicFontSize("text-xl"), ...getArabicFontStyle() }}>
+                                                            {word.arabic}
+                                                        </p>
+                                                        <button
+                                                            onClick={() => speakText(word.arabic, "ar", "arabic")}
+                                                            className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                                            title="Listen to Arabic pronunciation"
+                                                        >
+                                                            {speaking.arabic ? (
+                                                                <VolumeX className="w-4 h-4" />
+                                                            ) : (
+                                                                <Volume2 className="w-4 h-4" />
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-lg text-slate-700 font-semibold">{word.english}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleJumpToWord(word.id)}
+                                                    className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    title="Practice this word"
+                                                >
+                                                    <ArrowRight className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            )}
+
             {/* Navigation (only for Learn and Practice modes) */}
-            {(mode === "learn" || mode === "practice") && (
+            {(mode === "learn" || (mode === "practice" && !showSummary)) && (
                 <div className="mt-6 flex items-center justify-between">
                     <button
                         onClick={handlePrevious}
@@ -1026,13 +1374,31 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                         Previous
                     </button>
                     {mode === "practice" && (
-                        <button
-                            onClick={handleFlip}
-                            className="px-6 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors flex items-center gap-2"
-                        >
-                            <Eye className="w-5 h-5" />
-                            {isFlipped ? "Hide" : "Show"} Answer
-                        </button>
+                        <>
+                            <button
+                                onClick={handleFlip}
+                                className="px-6 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors flex items-center gap-2"
+                            >
+                                <Eye className="w-5 h-5" />
+                                {isFlipped ? "Hide" : "Show"} Answer
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowSummary(true);
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                className={`px-6 py-3 rounded-lg transition-colors flex items-center gap-2 ${
+                                    hasAnySavedProgress || Object.keys(practiceResults).length > 0
+                                        ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                        : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                }`}
+                                disabled={!hasAnySavedProgress && Object.keys(practiceResults).length === 0}
+                                title={!hasAnySavedProgress && Object.keys(practiceResults).length === 0 ? "Practice some words first" : "View summary"}
+                            >
+                                <BookOpen className="w-5 h-5" />
+                                Summary
+                            </button>
+                        </>
                     )}
                     <button
                         onClick={handleNext}

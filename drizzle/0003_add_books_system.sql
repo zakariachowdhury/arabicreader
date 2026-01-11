@@ -79,3 +79,4 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS "user_progress_user_word_unique" ON "user_progress" ("user_id","word_id");
 
 
+
