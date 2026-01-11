@@ -383,6 +383,14 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
     const handleJumpToWord = (wordId: number) => {
         const wordIndex = words.findIndex(w => w.id === wordId);
         if (wordIndex !== -1) {
+            // Ensure we're in practice mode
+            if (mode !== "practice") {
+                setMode("practice");
+            }
+            // Hide summary first, then set index
+            setShowSummary(false);
+            setSummaryDismissed(true);
+            // Set the practice index to jump to the word
             setPracticeIndex(wordIndex);
             setIsFlipped(false);
             // Remove from practiced words so they can practice it again
@@ -398,8 +406,10 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                 return newResults;
             });
             setPracticeCompleted(false);
-            // Scroll to top
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Scroll to top after a brief delay to ensure state updates
+            setTimeout(() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 0);
         }
     };
 
@@ -513,6 +523,11 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
     // Auto-play Arabic word sound when word changes (all modes)
     useEffect(() => {
         if (currentWord && soundEnabled) {
+            // Don't auto-play if summary is showing in practice mode
+            if (mode === "practice" && showSummary) {
+                return;
+            }
+            
             // In test mode, only auto-play if the word hasn't been answered yet
             if (mode === "test" && !testSubmitted) {
                 if (!answeredWords.has(currentWord.id)) {
@@ -535,7 +550,7 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentWord?.id, mode, testSubmitted, soundEnabled]);
+    }, [currentWord?.id, mode, testSubmitted, soundEnabled, showSummary]);
 
     // Load voices when component mounts
     useEffect(() => {
