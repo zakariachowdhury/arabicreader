@@ -890,8 +890,12 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handlePracticeAnswer(true);
-                                            handleNext();
+                                            // Flip card back first
                                             setIsFlipped(false);
+                                            // Wait for animation to complete (0.6s) before moving to next card
+                                            setTimeout(() => {
+                                                handleNext();
+                                            }, 200);
                                         }}
                                         className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-md hover:shadow-lg"
                                     >
@@ -902,8 +906,12 @@ export function VocabularyFlashcards({ words, initialProgress, lessonId, initial
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handlePracticeAnswer(false);
-                                            handleNext();
+                                            // Flip card back first
                                             setIsFlipped(false);
+                                            // Wait for animation to complete (0.6s) before moving to next card
+                                            setTimeout(() => {
+                                                handleNext();
+                                            }, 600);
                                         }}
                                         className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 shadow-md hover:shadow-lg"
                                     >
